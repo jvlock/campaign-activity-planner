@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/*.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/*.test.ts",
+    "test:governance-contract": "node --experimental-strip-types --test src/lib/governance.contract.test.ts src/lib/governance.live-contract.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

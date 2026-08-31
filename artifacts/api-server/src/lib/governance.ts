@@ -75,24 +75,133 @@ type FoundationSummary = {
   principles?: string[];
 };
 
+type FoundationTaxonomyValue = Record<string, unknown> & {
+  id: string;
+  stableKey: string;
+  category: string;
+  displayName: string;
+  status: string;
+  taxonomyVersion: string;
+};
+
+type GovernanceFetch = typeof fetch;
+
+export class GovernanceContractError extends Error {
+  constructor(endpoint: string, detail: string) {
+    super(`Invalid governance response from ${endpoint}: ${detail}`);
+    this.name = "GovernanceContractError";
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseCampaign(value: unknown, endpoint: string): FoundationCampaign {
+  if (!isRecord(value)) {
+    throw new GovernanceContractError(endpoint, "expected an object");
+  }
+  if (typeof value["campaignKey"] !== "string" || value["campaignKey"].length === 0) {
+    throw new GovernanceContractError(endpoint, "campaignKey must be a non-empty string");
+  }
+  if (typeof value["name"] !== "string" || value["name"].length === 0) {
+    throw new GovernanceContractError(endpoint, "name must be a non-empty string");
+  }
+  if (typeof value["status"] !== "string" || value["status"].length === 0) {
+    throw new GovernanceContractError(endpoint, "status must be a non-empty string");
+  }
+  return {
+    campaignKey: value["campaignKey"],
+    name: value["name"],
+    status: value["status"],
+  };
+}
+
+function parseCampaignList(value: unknown, endpoint: string): FoundationCampaign[] {
+  if (!Array.isArray(value)) {
+    throw new GovernanceContractError(endpoint, "expected an array");
+  }
+  return value.map((record) => parseCampaign(record, endpoint));
+}
+
+function parseSummary(value: unknown, endpoint: string): FoundationSummary {
+  if (!isRecord(value)) {
+    throw new GovernanceContractError(endpoint, "expected an object");
+  }
+  const taxonomyVersion = value["taxonomyVersion"];
+  const principles = value["principles"];
+  if (taxonomyVersion !== undefined && typeof taxonomyVersion !== "string") {
+    throw new GovernanceContractError(endpoint, "taxonomyVersion must be a string");
+  }
+  if (
+    principles !== undefined
+    && (!Array.isArray(principles) || !principles.every((item) => typeof item === "string"))
+  ) {
+    throw new GovernanceContractError(endpoint, "principles must be an array of strings");
+  }
+  return { taxonomyVersion, principles };
+}
+
+function parseTaxonomyValue(value: unknown, endpoint: string): FoundationTaxonomyValue {
+  if (!isRecord(value)) {
+    throw new GovernanceContractError(endpoint, "expected each taxonomy value to be an object");
+  }
+  for (const field of [
+    "id",
+    "stableKey",
+    "category",
+    "displayName",
+    "status",
+    "taxonomyVersion",
+  ] as const) {
+    if (typeof value[field] !== "string" || value[field].length === 0) {
+      throw new GovernanceContractError(
+        endpoint,
+        `taxonomy value ${field} must be a non-empty string`,
+      );
+    }
+  }
+  return value as FoundationTaxonomyValue;
+}
+
+function parseTaxonomyValues(value: unknown, endpoint: string): FoundationTaxonomyValue[] {
+  if (!Array.isArray(value)) {
+    throw new GovernanceContractError(endpoint, "expected an array");
+  }
+  return value.map((entry) => parseTaxonomyValue(entry, endpoint));
+}
+
 export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
   readonly label = "Governance status: Connected to Campaign Governance Foundation";
   readonly source = "Campaign Governance Foundation";
+  private readonly baseUrl: string;
+  private readonly fetchImpl: GovernanceFetch;
+  private readonly timeoutMs: number;
 
   constructor(
-    private readonly baseUrl = process.env.GOVERNANCE_BASE_URL
+    baseUrl = process.env.GOVERNANCE_BASE_URL
       ?? "https://campaign-governance-foundation.replit.app",
-  ) {}
+    fetchImpl: GovernanceFetch = fetch,
+    timeoutMs = 5_000,
+  ) {
+    this.baseUrl = baseUrl;
+    this.fetchImpl = fetchImpl;
+    this.timeoutMs = timeoutMs;
+  }
 
-  private async request<T>(path: string): Promise<T> {
-    const response = await fetch(new URL(path, this.baseUrl), {
+  private async request(path: string): Promise<unknown> {
+    const response = await this.fetchImpl(new URL(path, this.baseUrl), {
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!response.ok) {
       throw new Error(`Governance request failed (${response.status})`);
     }
-    return response.json() as Promise<T>;
+    try {
+      return await response.json() as unknown;
+    } catch {
+      throw new GovernanceContractError(path, "expected valid JSON");
+    }
   }
 
   private mapCampaign(record: FoundationCampaign): GovernanceCampaign {
@@ -108,28 +217,34 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
 
   async isConnected(): Promise<boolean> {
     try {
-      const health = await this.request<{ status?: string }>("/api/healthz");
-      return health.status === "ok";
+      const health = await this.request("/api/healthz");
+      return isRecord(health) && health["status"] === "ok";
     } catch {
       return false;
     }
   }
 
   async searchCampaigns(query: string): Promise<GovernanceCampaign[]> {
-    const records = await this.request<FoundationCampaign[]>(
-      `/api/campaigns?search=${encodeURIComponent(query)}`,
-    );
+    const path = `/api/campaigns?search=${encodeURIComponent(query)}`;
+    const records = parseCampaignList(await this.request(path), path);
     return records.map((record) => this.mapCampaign(record));
   }
 
   async getCampaign(id: string): Promise<GovernanceCampaign | null> {
-    const response = await fetch(new URL(`/api/campaigns/${encodeURIComponent(id)}`, this.baseUrl), {
+    const path = `/api/campaigns/${encodeURIComponent(id)}`;
+    const response = await this.fetchImpl(new URL(path, this.baseUrl), {
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`Governance request failed (${response.status})`);
-    return this.mapCampaign(await response.json() as FoundationCampaign);
+    let payload: unknown;
+    try {
+      payload = await response.json() as unknown;
+    } catch {
+      throw new GovernanceContractError(path, "expected valid JSON");
+    }
+    return this.mapCampaign(parseCampaign(payload, path));
   }
 
   async createDraftCampaignRequest(input: Record<string, unknown>): Promise<GovernanceCampaign> {
@@ -144,19 +259,20 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
   }
 
   async getTaxonomy(scope: string): Promise<Record<string, unknown>> {
-    const values = await this.request<Record<string, unknown>[]>(
-      `/api/taxonomy/values?category=${encodeURIComponent(scope)}`,
-    );
+    const path = `/api/taxonomy/values?category=${encodeURIComponent(scope)}`;
+    const values = parseTaxonomyValues(await this.request(path), path);
     return { scope, values };
   }
 
   async getTaxonomyVersion(): Promise<string | null> {
-    const summary = await this.request<FoundationSummary>("/api/foundation/summary");
+    const path = "/api/foundation/summary";
+    const summary = parseSummary(await this.request(path), path);
     return summary.taxonomyVersion ?? null;
   }
 
   async getNamingRules(): Promise<Record<string, unknown>> {
-    const summary = await this.request<FoundationSummary>("/api/foundation/summary");
+    const path = "/api/foundation/summary";
+    const summary = parseSummary(await this.request(path), path);
     return { principles: summary.principles ?? [] };
   }
 
