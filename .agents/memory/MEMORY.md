@@ -1,0 +1,1 @@
+- [Code generator dependency pinning](code-generator-dependency-pinning.md) — keep generators exact-pinned when transitive security fixes can be applied safely without changing generated output.
