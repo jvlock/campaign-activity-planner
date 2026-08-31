@@ -46,3 +46,28 @@ test("webinar template creates all MVP branch communications", () => {
   assert.ok(schedule.some((item) => item.branch === "Attended"));
   assert.ok(schedule.some((item) => item.branch === "No Show"));
 });
+
+test("May 31 2026 webinar fixture applies complete business-day schedule", () => {
+  const schedule = calculateWebinarSchedule("2026-05-31");
+  assert.deepEqual(schedule.map((item) => [item.rule, item.scheduledDate]), [
+    ["D-21", "2026-05-08"],
+    ["D-14", "2026-05-15"],
+    ["D-7", "2026-05-22"],
+    ["D-1", "2026-05-29"],
+    ["Immediate", "2026-05-31"],
+    ["24 hours before", "2026-05-30"],
+    ["30 minutes before", "2026-05-31"],
+    ["Next business day", "2026-06-01"],
+    ["Next business day", "2026-06-01"],
+    ["D+7", "2026-06-08"],
+  ]);
+});
+
+test("optional start and recording communications are configurable", () => {
+  const schedule = calculateWebinarSchedule("2026-05-31", [], {
+    includeStartNotification: true,
+    includeRecordingReminder: false,
+  });
+  assert.ok(schedule.some((item) => item.type === "Start notification"));
+  assert.ok(!schedule.some((item) => item.rule === "D+7"));
+});

@@ -15,4 +15,18 @@ export interface CampaignInput {
   owner: string;
   startDate: Date;
   endDate: Date;
+  /** @minLength 1 */
+  product: string;
+  /** @minLength 1 */
+  geography: string;
+  /** @minLength 1 */
+  businessUnit: string;
+  /** @minLength 1 */
+  campaignType?: string;
+  /** @minLength 1 */
+  audienceSegment?: string;
+  /** @minLength 1 */
+  fiscalPeriod?: string;
+  /** @minLength 1 */
+  description?: string;
 }

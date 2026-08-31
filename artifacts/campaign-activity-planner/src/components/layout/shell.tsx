@@ -48,20 +48,20 @@ export function Shell({ children }: ShellProps) {
             })}
           </nav>
         </div>
-        <div className="border-t border-sidebar-border p-4">
+        <div className="border-t border-sidebar-border p-4 space-y-2">
           <Link
-            href="/new"
+            href="/campaigns/new"
             className="flex items-center justify-center gap-2 rounded-md bg-sidebar-primary px-3 py-2 text-sm font-semibold text-sidebar-primary-foreground hover:bg-sidebar-primary/90 transition-colors shadow-sm"
-            data-testid="nav-new-webinar"
+            data-testid="nav-new-campaign"
           >
             <Plus className="h-4 w-4" />
-            New Webinar
+            New Campaign
           </Link>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile Header */}
         <header className="flex h-14 items-center border-b bg-card px-4 md:hidden">
           <Link href="/" className="flex items-center gap-2 font-bold text-primary tracking-tight">
@@ -69,7 +69,7 @@ export function Shell({ children }: ShellProps) {
             <span>Activity Planner</span>
           </Link>
         </header>
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-background">
           {children}
         </main>
       </div>

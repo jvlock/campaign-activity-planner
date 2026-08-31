@@ -10,6 +10,7 @@ tags:
   - name: campaigns
   - name: planning
   - name: governance
+  - name: operations
 paths:
   /healthz:
     get:
@@ -83,6 +84,30 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignPlan" }
+  /campaigns/{campaignId}/governance/retry:
+    parameters:
+      - $ref: "#/components/parameters/CampaignId"
+    post:
+      operationId: retryCampaignGovernance
+      tags: [governance]
+      responses:
+        "200":
+          description: Governance assignment retried and audited
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignPlan" }
+  /campaigns/{campaignId}/workbook:
+    parameters:
+      - $ref: "#/components/parameters/CampaignId"
+    get:
+      operationId: exportImplementationWorkbook
+      tags: [planning]
+      responses:
+        "200":
+          description: Implementation workbook data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImplementationWorkbook" }
   /campaigns/{campaignId}/webinar:
     parameters:
       - $ref: "#/components/parameters/CampaignId"
@@ -117,6 +142,52 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReschedulePreview" }
+  /activities/{activityId}:
+    get:
+      operationId: getActivity
+      tags: [planning]
+      parameters:
+        - $ref: "#/components/parameters/ActivityId"
+      responses:
+        "200":
+          description: Activity detail with child communications
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActivityDetail" }
+  /activities/{activityId}/registrations:
+    post:
+      operationId: registerWebinarPerson
+      tags: [operations]
+      parameters:
+        - $ref: "#/components/parameters/ActivityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegistrationInput" }
+      responses:
+        "200":
+          description: Registration recorded and recruitment suppressed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationalResult" }
+  /activities/{activityId}/attendance:
+    post:
+      operationId: recordWebinarAttendance
+      tags: [operations]
+      parameters:
+        - $ref: "#/components/parameters/ActivityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AttendanceInput" }
+      responses:
+        "200":
+          description: Attendance recorded and follow-up branch resolved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationalResult" }
   /activities/{activityId}/confirm-reschedule:
     post:
       operationId: confirmReschedule
@@ -135,6 +206,17 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignWorkspace" }
   /communications/{communicationId}:
+    get:
+      operationId: getCommunication
+      tags: [planning]
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Communication detail including registered links
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommunicationDetail" }
     patch:
       operationId: updateCommunication
       tags: [planning]
@@ -163,6 +245,90 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReadinessResult" }
+  /communications/{communicationId}/links:
+    post:
+      operationId: registerTrackingLink
+      tags: [governance]
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrackingLinkInput" }
+      responses:
+        "201":
+          description: Governed tracking link registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackingLink" }
+  /company-aliases:
+    get:
+      operationId: listCompanyAliases
+      tags: [governance]
+      responses:
+        "200":
+          description: Company display name registry
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CompanyAlias" }
+    post:
+      operationId: createCompanyAlias
+      tags: [governance]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompanyAliasInput" }
+      responses:
+        "201":
+          description: Company alias created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CompanyAlias" }
+  /company-aliases/resolve:
+    get:
+      operationId: resolveCompanyAlias
+      tags: [governance]
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Resolved company display name
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CompanyAliasResolution" }
+  /company-aliases/{companyAliasId}:
+    parameters:
+      - name: companyAliasId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateCompanyAlias
+      tags: [governance]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompanyAliasUpdate" }
+      responses:
+        "200":
+          description: Company alias updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CompanyAlias" }
+    delete:
+      operationId: deleteCompanyAlias
+      tags: [governance]
+      responses:
+        "204":
+          description: Company alias deleted
   /governance/status:
     get:
       operationId: getGovernanceStatus
@@ -173,6 +339,26 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/GovernanceStatus" }
+  /governance/taxonomy/{scope}:
+    get:
+      operationId: getGovernanceTaxonomy
+      tags: [governance]
+      parameters:
+        - name: scope
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Authoritative taxonomy values, or an explicitly disconnected result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GovernanceTaxonomy" }
+        "503":
+          description: Governance provider failed while retrieving taxonomy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServiceError" }
 components:
   parameters:
     CampaignId:
@@ -203,9 +389,31 @@ components:
         connected: { type: boolean }
         label: { type: string }
         authoritativeSource: { type: string }
+    GovernanceTaxonomy:
+      type: object
+      required: [scope, taxonomyVersion, connected, values]
+      properties:
+        scope: { type: string }
+        taxonomyVersion: { type: ["string", "null"] }
+        connected: { type: boolean }
+        values:
+          type: array
+          items: { $ref: "#/components/schemas/GovernanceTaxonomyValue" }
+    GovernanceTaxonomyValue:
+      type: object
+      required: [stableKey, displayName, status]
+      properties:
+        stableKey: { type: string }
+        displayName: { type: string }
+        status: { type: string }
+    ServiceError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
     CampaignPlan:
       type: object
-      required: [id, internalTitle, shortTitle, objective, lifecycleStatus, governanceStatus, owner, startDate, endDate, activityCount, warningCount, updatedAt, version]
+      required: [id, internalTitle, shortTitle, objective, lifecycleStatus, governanceStatus, owner, startDate, endDate, product, geography, businessUnit, campaignType, audienceSegment, fiscalPeriod, description, activityCount, warningCount, updatedAt, version]
       properties:
         id: { type: string }
         internalTitle: { type: string }
@@ -218,19 +426,33 @@ components:
         owner: { type: string }
         startDate: { type: string, format: date }
         endDate: { type: string, format: date }
+        product: { type: string }
+        geography: { type: string }
+        businessUnit: { type: string }
+        campaignType: { type: string }
+        audienceSegment: { type: string }
+        fiscalPeriod: { type: string }
+        description: { type: string }
         activityCount: { type: number }
         warningCount: { type: number }
         updatedAt: { type: string, format: date-time }
         version: { type: number }
     CampaignInput:
       type: object
-      required: [shortTitle, objective, owner, startDate, endDate]
+      required: [shortTitle, objective, owner, startDate, endDate, product, geography, businessUnit]
       properties:
         shortTitle: { type: string, minLength: 2 }
         objective: { type: string, minLength: 2 }
         owner: { type: string, minLength: 2 }
         startDate: { type: string, format: date }
         endDate: { type: string, format: date }
+        product: { type: string, minLength: 1 }
+        geography: { type: string, minLength: 1 }
+        businessUnit: { type: string, minLength: 1 }
+        campaignType: { type: string, minLength: 1 }
+        audienceSegment: { type: string, minLength: 1 }
+        fiscalPeriod: { type: string, minLength: 1 }
+        description: { type: string, minLength: 1 }
     CampaignUpdate:
       type: object
       properties:
@@ -238,6 +460,13 @@ components:
         objective: { type: string }
         owner: { type: string }
         lifecycleStatus: { type: string }
+        product: { type: string }
+        geography: { type: string }
+        businessUnit: { type: string }
+        campaignType: { type: string }
+        audienceSegment: { type: string }
+        fiscalPeriod: { type: string }
+        description: { type: string }
     WebinarInput:
       type: object
       required: [subject, externalTitle, segment, geography, language, product, topic, objective, eventDate, startTime, durationMinutes, timezone, platform]
@@ -257,6 +486,32 @@ components:
         timezone: { type: string }
         platform: { type: string }
         registrationUrl: { type: string }
+        subsegment: { type: string }
+        persona: { type: string }
+        customerStatus: { type: string }
+        exclusions:
+          type: array
+          items: { type: string }
+        speakers:
+          type: array
+          items: { $ref: "#/components/schemas/WebinarSpeakerInput" }
+        scheduleOptions: { $ref: "#/components/schemas/WebinarScheduleOptions" }
+        registrationPending: { type: boolean }
+        webinarOwner: { type: string, minLength: 1 }
+        emailMarketingOwner: { type: string, minLength: 1 }
+    WebinarSpeakerInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        title: { type: string }
+        organization: { type: string }
+        bio: { type: string }
+    WebinarScheduleOptions:
+      type: object
+      properties:
+        includeStartNotification: { type: boolean, default: false }
+        includeRecordingReminder: { type: boolean, default: true }
     CampaignActivity:
       type: object
       required: [id, campaignId, activityType, internalTitle, shortTitle, lifecycleStatus, governanceStatus, eventDate, startTime, timezone, owner, version]
@@ -272,6 +527,7 @@ components:
         startTime: { type: string }
         timezone: { type: string }
         owner: { type: string }
+        activityCode: { type: ["string", "null"] }
         version: { type: number }
     Communication:
       type: object
@@ -299,6 +555,21 @@ components:
         preheader: { type: ["string", "null"] }
         body: { type: ["string", "null"] }
         destinationUrl: { type: ["string", "null"] }
+        header: { type: ["string", "null"] }
+        primaryCtaLabel: { type: ["string", "null"] }
+        destinationType: { type: ["string", "null"] }
+        secondaryCtaLabel: { type: ["string", "null"] }
+        secondaryCtaUrl: { type: ["string", "null"] }
+        fromName: { type: ["string", "null"] }
+        replyTo: { type: ["string", "null"] }
+        dynamicTokens: { type: array, items: { type: string } }
+        tokenFallbacks: { type: object, additionalProperties: { type: string } }
+        communicationCode: { type: ["string", "null"] }
+        utmParameters: { type: object, additionalProperties: { type: string } }
+        owner: { type: string }
+        dependencies: { type: array, items: { type: string } }
+        qaChecklist: { type: object, additionalProperties: { type: boolean } }
+        version: { type: number }
     CommunicationUpdate:
       type: object
       properties:
@@ -310,6 +581,20 @@ components:
         lifecycleStatus: { type: string }
         approvalStatus: { type: string }
         pinned: { type: boolean }
+        header: { type: string }
+        primaryCtaLabel: { type: string }
+        destinationType: { type: string }
+        secondaryCtaLabel: { type: string }
+        secondaryCtaUrl: { type: string }
+        fromName: { type: string }
+        replyTo: { type: string }
+        dynamicTokens: { type: array, items: { type: string } }
+        tokenFallbacks: { type: object, additionalProperties: { type: string } }
+        communicationCode: { type: string }
+        utmParameters: { type: object, additionalProperties: { type: string } }
+        owner: { type: string }
+        dependencies: { type: array, items: { type: string } }
+        qaChecklist: { type: object, additionalProperties: { type: boolean } }
     ChangeEvent:
       type: object
       required: [id, eventType, summary, actor, createdAt]
@@ -352,6 +637,8 @@ components:
       required: [eventDate]
       properties:
         eventDate: { type: string, format: date }
+        startTime: { type: string }
+        timezone: { type: string }
     RescheduleItem:
       type: object
       required: [communicationId, title, oldDate, proposedDate, action, warning]
@@ -368,6 +655,10 @@ components:
       properties:
         oldEventDate: { type: string, format: date }
         newEventDate: { type: string, format: date }
+        oldStartTime: { type: ["string", "null"] }
+        newStartTime: { type: ["string", "null"] }
+        oldTimezone: { type: ["string", "null"] }
+        newTimezone: { type: ["string", "null"] }
         items:
           type: array
           items: { $ref: "#/components/schemas/RescheduleItem" }
@@ -390,3 +681,137 @@ components:
         checks:
           type: array
           items: { $ref: "#/components/schemas/ReadinessCheck" }
+    ActivityDetail:
+      type: object
+      required: [activity, communications]
+      properties:
+        activity: { $ref: "#/components/schemas/CampaignActivity" }
+        communications:
+          type: array
+          items: { $ref: "#/components/schemas/Communication" }
+    CommunicationDetail:
+      type: object
+      required: [communication, links, contentHistory]
+      properties:
+        communication: { $ref: "#/components/schemas/Communication" }
+        links:
+          type: array
+          items: { $ref: "#/components/schemas/TrackingLink" }
+        contentHistory:
+          type: array
+          items: { $ref: "#/components/schemas/ContentVersion" }
+    ContentVersion:
+      type: object
+      required: [id, versionNumber, isCurrent, createdAt]
+      properties:
+        id: { type: string }
+        versionNumber: { type: number }
+        subject: { type: ["string", "null"] }
+        header: { type: ["string", "null"] }
+        body: { type: ["string", "null"] }
+        primaryCtaLabel: { type: ["string", "null"] }
+        secondaryCtaLabel: { type: ["string", "null"] }
+        secondaryCtaUrl: { type: ["string", "null"] }
+        fromName: { type: ["string", "null"] }
+        replyTo: { type: ["string", "null"] }
+        tokenFallbacks: { type: object, additionalProperties: { type: string } }
+        isCurrent: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    RegistrationInput:
+      type: object
+      required: [personReference]
+      properties:
+        personReference: { type: string, minLength: 1 }
+    AttendanceInput:
+      type: object
+      required: [personReference, attendanceStatus]
+      properties:
+        personReference: { type: string, minLength: 1 }
+        attendanceStatus: { type: string, enum: [Attended, No Show] }
+        attendedMinutes: { type: number, minimum: 0 }
+        explicitHandraiser: { type: boolean }
+    OperationalResult:
+      type: object
+      required: [personReference, branch, suppressedCommunicationIds, suppressionStates]
+      properties:
+        personReference: { type: string }
+        branch: { type: string }
+        suppressedCommunicationIds:
+          type: array
+          items: { type: string }
+        suppressionStates:
+          type: array
+          items: { $ref: "#/components/schemas/PersonCommunicationState" }
+    PersonCommunicationState:
+      type: object
+      required: [communicationId, eligibilityStatus, reason, updatedAt]
+      properties:
+        communicationId: { type: string }
+        eligibilityStatus: { type: string, enum: [Eligible, Suppressed] }
+        reason: { type: string }
+        updatedAt: { type: string, format: date-time }
+    TrackingLinkInput:
+      type: object
+      required: [baseUrl]
+      properties:
+        baseUrl: { type: string, minLength: 1 }
+        parameters:
+          type: object
+          additionalProperties: { type: string }
+    TrackingLink:
+      type: object
+      required: [id, communicationId, baseUrl, finalTrackedUrl, parameters, validationResult]
+      properties:
+        id: { type: string }
+        communicationId: { type: string }
+        baseUrl: { type: string }
+        finalTrackedUrl: { type: string }
+        parameters: { type: object, additionalProperties: true }
+        validationResult: { type: object, additionalProperties: true }
+    CompanyAlias:
+      type: object
+      required: [id, salesforceAccountId, legalName, normalizedMatchingName, aliases, language, approvalStatus]
+      properties:
+        id: { type: string }
+        salesforceAccountId: { type: string }
+        legalName: { type: string }
+        normalizedMatchingName: { type: string }
+        approvedDisplayName: { type: ["string", "null"] }
+        aliases: { type: array, items: { type: string } }
+        language: { type: string }
+        approvalStatus: { type: string }
+    CompanyAliasInput:
+      type: object
+      required: [salesforceAccountId, legalName]
+      properties:
+        salesforceAccountId: { type: string }
+        legalName: { type: string }
+        approvedDisplayName: { type: string }
+        aliases: { type: array, items: { type: string } }
+        language: { type: string }
+    CompanyAliasUpdate:
+      type: object
+      properties:
+        legalName: { type: string }
+        approvedDisplayName: { type: string }
+        aliases: { type: array, items: { type: string } }
+        language: { type: string }
+        approvalStatus: { type: string }
+    CompanyAliasResolution:
+      type: object
+      required: [matched, query, displayName]
+      properties:
+        matched: { type: boolean }
+        query: { type: string }
+        displayName: { type: string }
+        company: { $ref: "#/components/schemas/CompanyAlias" }
+    ImplementationWorkbook:
+      type: object
+      required: [generatedAt, campaign, activities, communications, links, changeEvents]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        campaign: { $ref: "#/components/schemas/CampaignPlan" }
+        activities: { type: array, items: { $ref: "#/components/schemas/CampaignActivity" } }
+        communications: { type: array, items: { $ref: "#/components/schemas/Communication" } }
+        links: { type: array, items: { $ref: "#/components/schemas/TrackingLink" } }
+        changeEvents: { type: array, items: { $ref: "#/components/schemas/ChangeEvent" } }

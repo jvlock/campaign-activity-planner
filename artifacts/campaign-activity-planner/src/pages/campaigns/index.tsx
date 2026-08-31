@@ -29,7 +29,7 @@ export default function Campaigns() {
           </h1>
           <p className="text-muted-foreground mt-1">Manage and track all integrated marketing campaigns.</p>
         </div>
-        <Link href="/new">
+        <Link href="/campaigns/new">
           <Button className="gap-2" data-testid="btn-new-campaign">
             <Plus className="h-4 w-4" />
             New Campaign

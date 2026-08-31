@@ -52,6 +52,13 @@ export const campaignPlansTable = pgTable("campaign_plans", {
   endDate: date("end_date", { mode: "string" }).notNull(),
   campaignCode: text("campaign_code"),
   fiscalAssignment: text("fiscal_assignment"),
+  product: text("product").notNull().default("Unspecified"),
+  geography: text("geography").notNull().default("Global"),
+  businessUnit: text("business_unit").notNull().default("Unspecified"),
+  campaignType: text("campaign_type").notNull().default("Unspecified"),
+  audienceSegment: text("audience_segment").notNull().default("Unspecified"),
+  fiscalPeriod: text("fiscal_period").notNull().default("Unspecified"),
+  description: text("description").notNull().default(""),
   ...auditColumns,
 });
 
@@ -128,6 +135,10 @@ export const communicationsTable = pgTable("communications", {
   warningCount: integer("warning_count").notNull().default(0),
   pinned: boolean("pinned").notNull().default(false),
   sent: boolean("sent").notNull().default(false),
+  communicationCode: text("communication_code"),
+  dynamicTokens: jsonb("dynamic_tokens").$type<string[]>().notNull().default([]),
+  dependencies: jsonb("dependencies").$type<string[]>().notNull().default([]),
+  qaChecklist: jsonb("qa_checklist").$type<Record<string, boolean>>().notNull().default({}),
   ...auditColumns,
 });
 
@@ -196,11 +207,15 @@ export const contentVersionsTable = pgTable("content_versions", {
   subject: text("subject"),
   preheader: text("preheader"),
   headline: text("headline"),
+  header: text("header"),
   body: text("body"),
   primaryCta: text("primary_cta"),
+  secondaryCta: text("secondary_cta"),
+  secondaryCtaUrl: text("secondary_cta_url"),
   senderName: text("sender_name"),
   fromAddress: text("from_address"),
   replyToAddress: text("reply_to_address"),
+  tokenFallbacks: jsonb("token_fallbacks").$type<Record<string, string>>().notNull().default({}),
   footer: text("footer"),
   plainText: text("plain_text"),
   isCurrent: boolean("is_current").notNull().default(true),
@@ -312,6 +327,9 @@ export const webinarEventsTable = pgTable("webinar_events", {
   topic: text("topic").notNull(),
   objective: text("objective").notNull(),
   successMeasure: text("success_measure"),
+  registrationPending: boolean("registration_pending").notNull().default(true),
+  webinarOwner: text("webinar_owner").notNull().default("Development User"),
+  emailMarketingOwner: text("email_marketing_owner").notNull().default("Development User"),
   durationMinutes: integer("duration_minutes").notNull(),
   platform: text("platform").notNull(),
   ...auditColumns,
@@ -366,3 +384,22 @@ export const attendanceResultsTable = pgTable("attendance_results", {
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
   ...auditColumns,
 });
+
+export const registrationResultsTable = pgTable("registration_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  webinarEventId: uuid("webinar_event_id").notNull().references(() => webinarEventsTable.id),
+  personReference: text("person_reference").notNull(),
+  registeredAt: timestamp("registered_at", { withTimezone: true }).notNull().defaultNow(),
+  recruitmentSuppressed: boolean("recruitment_suppressed").notNull().default(true),
+  ...auditColumns,
+}, (table) => [uniqueIndex("registration_result_person_unique").on(table.webinarEventId, table.personReference)]);
+
+/** Per-person eligibility is retained separately from global communication lifecycle. */
+export const personCommunicationStatesTable = pgTable("person_communication_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  communicationId: uuid("communication_id").notNull().references(() => communicationsTable.id),
+  personReference: text("person_reference").notNull(),
+  eligibilityStatus: text("eligibility_status").notNull().default("Eligible"),
+  reason: text("reason").notNull(),
+  ...auditColumns,
+}, (table) => [uniqueIndex("person_communication_state_unique").on(table.communicationId, table.personReference)]);

@@ -7,10 +7,10 @@ import {
 
 type FetchHandler = (url: URL, init?: RequestInit) => Response | Promise<Response>;
 
-function adapter(handler: FetchHandler, timeoutMs = 5_000) {
+function adapter(handler: FetchHandler, timeoutMs = 5_000, serviceToken?: string) {
   const fetchImpl = ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
     handler(new URL(String(input)), init)) as typeof fetch;
-  return new CampaignGovernanceFoundationAdapter("https://governance.example", fetchImpl, timeoutMs);
+  return new CampaignGovernanceFoundationAdapter("https://governance.example", fetchImpl, timeoutMs, serviceToken);
 }
 
 function json(body: unknown, status = 200): Response {
@@ -78,6 +78,20 @@ test("campaign search validates and maps the Foundation response", async () => {
 test("campaign lookup returns null for not found", async () => {
   const governance = adapter(() => json({ error: "not found" }, 404));
   assert.equal(await governance.getCampaign("missing"), null);
+});
+
+test("campaign requests use injected Bearer authentication when configured", async () => {
+  const seen: string[] = [];
+  const governance = adapter((url, init) => {
+    seen.push(String((init?.headers as Record<string, string> | undefined)?.Authorization));
+    if (url.pathname.endsWith("/CMP-101")) {
+      return json({ campaignKey: "CMP-101", name: "Annual Appeal", status: "active" });
+    }
+    return json([{ campaignKey: "CMP-101", name: "Annual Appeal", status: "active" }]);
+  }, 5_000, "test-service-token");
+  await governance.searchCampaigns("annual");
+  await governance.getCampaign("CMP-101");
+  assert.deepEqual(seen, ["Bearer test-service-token", "Bearer test-service-token"]);
 });
 
 test("renamed campaign fields are rejected as malformed", async () => {

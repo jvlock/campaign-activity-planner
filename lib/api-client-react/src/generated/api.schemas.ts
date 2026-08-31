@@ -15,6 +15,24 @@ export interface GovernanceStatus {
   authoritativeSource: string;
 }
 
+export interface GovernanceTaxonomyValue {
+  stableKey: string;
+  displayName: string;
+  status: string;
+}
+
+export interface GovernanceTaxonomy {
+  scope: string;
+  /** @nullable */
+  taxonomyVersion: string | null;
+  connected: boolean;
+  values: GovernanceTaxonomyValue[];
+}
+
+export interface ServiceError {
+  error: string;
+}
+
 export interface CampaignPlan {
   id: string;
   internalTitle: string;
@@ -29,6 +47,13 @@ export interface CampaignPlan {
   owner: string;
   startDate: string;
   endDate: string;
+  product: string;
+  geography: string;
+  businessUnit: string;
+  campaignType: string;
+  audienceSegment: string;
+  fiscalPeriod: string;
+  description: string;
   activityCount: number;
   warningCount: number;
   updatedAt: string;
@@ -44,6 +69,20 @@ export interface CampaignInput {
   owner: string;
   startDate: string;
   endDate: string;
+  /** @minLength 1 */
+  product: string;
+  /** @minLength 1 */
+  geography: string;
+  /** @minLength 1 */
+  businessUnit: string;
+  /** @minLength 1 */
+  campaignType?: string;
+  /** @minLength 1 */
+  audienceSegment?: string;
+  /** @minLength 1 */
+  fiscalPeriod?: string;
+  /** @minLength 1 */
+  description?: string;
 }
 
 export interface CampaignUpdate {
@@ -51,6 +90,25 @@ export interface CampaignUpdate {
   objective?: string;
   owner?: string;
   lifecycleStatus?: string;
+  product?: string;
+  geography?: string;
+  businessUnit?: string;
+  campaignType?: string;
+  audienceSegment?: string;
+  fiscalPeriod?: string;
+  description?: string;
+}
+
+export interface WebinarSpeakerInput {
+  name: string;
+  title?: string;
+  organization?: string;
+  bio?: string;
+}
+
+export interface WebinarScheduleOptions {
+  includeStartNotification?: boolean;
+  includeRecordingReminder?: boolean;
 }
 
 export interface WebinarInput {
@@ -69,6 +127,17 @@ export interface WebinarInput {
   timezone: string;
   platform: string;
   registrationUrl?: string;
+  subsegment?: string;
+  persona?: string;
+  customerStatus?: string;
+  exclusions?: string[];
+  speakers?: WebinarSpeakerInput[];
+  scheduleOptions?: WebinarScheduleOptions;
+  registrationPending?: boolean;
+  /** @minLength 1 */
+  webinarOwner?: string;
+  /** @minLength 1 */
+  emailMarketingOwner?: string;
 }
 
 export interface CampaignActivity {
@@ -83,8 +152,16 @@ export interface CampaignActivity {
   startTime: string;
   timezone: string;
   owner: string;
+  /** @nullable */
+  activityCode?: string | null;
   version: number;
 }
+
+export type CommunicationTokenFallbacks = {[key: string]: string};
+
+export type CommunicationUtmParameters = {[key: string]: string};
+
+export type CommunicationQaChecklist = {[key: string]: boolean};
 
 export interface Communication {
   id: string;
@@ -114,7 +191,36 @@ export interface Communication {
   body?: string | null;
   /** @nullable */
   destinationUrl?: string | null;
+  /** @nullable */
+  header?: string | null;
+  /** @nullable */
+  primaryCtaLabel?: string | null;
+  /** @nullable */
+  destinationType?: string | null;
+  /** @nullable */
+  secondaryCtaLabel?: string | null;
+  /** @nullable */
+  secondaryCtaUrl?: string | null;
+  /** @nullable */
+  fromName?: string | null;
+  /** @nullable */
+  replyTo?: string | null;
+  dynamicTokens?: string[];
+  tokenFallbacks?: CommunicationTokenFallbacks;
+  /** @nullable */
+  communicationCode?: string | null;
+  utmParameters?: CommunicationUtmParameters;
+  owner?: string;
+  dependencies?: string[];
+  qaChecklist?: CommunicationQaChecklist;
+  version?: number;
 }
+
+export type CommunicationUpdateTokenFallbacks = {[key: string]: string};
+
+export type CommunicationUpdateUtmParameters = {[key: string]: string};
+
+export type CommunicationUpdateQaChecklist = {[key: string]: boolean};
 
 export interface CommunicationUpdate {
   shortTitle?: string;
@@ -125,6 +231,20 @@ export interface CommunicationUpdate {
   lifecycleStatus?: string;
   approvalStatus?: string;
   pinned?: boolean;
+  header?: string;
+  primaryCtaLabel?: string;
+  destinationType?: string;
+  secondaryCtaLabel?: string;
+  secondaryCtaUrl?: string;
+  fromName?: string;
+  replyTo?: string;
+  dynamicTokens?: string[];
+  tokenFallbacks?: CommunicationUpdateTokenFallbacks;
+  communicationCode?: string;
+  utmParameters?: CommunicationUpdateUtmParameters;
+  owner?: string;
+  dependencies?: string[];
+  qaChecklist?: CommunicationUpdateQaChecklist;
 }
 
 export interface ChangeEvent {
@@ -153,6 +273,8 @@ export interface Dashboard {
 
 export interface RescheduleInput {
   eventDate: string;
+  startTime?: string;
+  timezone?: string;
 }
 
 export interface RescheduleItem {
@@ -167,6 +289,14 @@ export interface RescheduleItem {
 export interface ReschedulePreview {
   oldEventDate: string;
   newEventDate: string;
+  /** @nullable */
+  oldStartTime?: string | null;
+  /** @nullable */
+  newStartTime?: string | null;
+  /** @nullable */
+  oldTimezone?: string | null;
+  /** @nullable */
+  newTimezone?: string | null;
   items: RescheduleItem[];
   warnings: string[];
 }
@@ -182,4 +312,154 @@ export interface ReadinessResult {
   ready: boolean;
   checks: ReadinessCheck[];
 }
+
+export interface ActivityDetail {
+  activity: CampaignActivity;
+  communications: Communication[];
+}
+
+export type TrackingLinkParameters = { [key: string]: unknown };
+
+export type TrackingLinkValidationResult = { [key: string]: unknown };
+
+export interface TrackingLink {
+  id: string;
+  communicationId: string;
+  baseUrl: string;
+  finalTrackedUrl: string;
+  parameters: TrackingLinkParameters;
+  validationResult: TrackingLinkValidationResult;
+}
+
+export type ContentVersionTokenFallbacks = {[key: string]: string};
+
+export interface ContentVersion {
+  id: string;
+  versionNumber: number;
+  /** @nullable */
+  subject?: string | null;
+  /** @nullable */
+  header?: string | null;
+  /** @nullable */
+  body?: string | null;
+  /** @nullable */
+  primaryCtaLabel?: string | null;
+  /** @nullable */
+  secondaryCtaLabel?: string | null;
+  /** @nullable */
+  secondaryCtaUrl?: string | null;
+  /** @nullable */
+  fromName?: string | null;
+  /** @nullable */
+  replyTo?: string | null;
+  tokenFallbacks?: ContentVersionTokenFallbacks;
+  isCurrent: boolean;
+  createdAt: string;
+}
+
+export interface CommunicationDetail {
+  communication: Communication;
+  links: TrackingLink[];
+  contentHistory: ContentVersion[];
+}
+
+export interface RegistrationInput {
+  /** @minLength 1 */
+  personReference: string;
+}
+
+export type AttendanceInputAttendanceStatus = typeof AttendanceInputAttendanceStatus[keyof typeof AttendanceInputAttendanceStatus];
+
+
+export const AttendanceInputAttendanceStatus = {
+  Attended: 'Attended',
+  No_Show: 'No Show',
+} as const;
+
+export interface AttendanceInput {
+  /** @minLength 1 */
+  personReference: string;
+  attendanceStatus: AttendanceInputAttendanceStatus;
+  /** @minimum 0 */
+  attendedMinutes?: number;
+  explicitHandraiser?: boolean;
+}
+
+export type PersonCommunicationStateEligibilityStatus = typeof PersonCommunicationStateEligibilityStatus[keyof typeof PersonCommunicationStateEligibilityStatus];
+
+
+export const PersonCommunicationStateEligibilityStatus = {
+  Eligible: 'Eligible',
+  Suppressed: 'Suppressed',
+} as const;
+
+export interface PersonCommunicationState {
+  communicationId: string;
+  eligibilityStatus: PersonCommunicationStateEligibilityStatus;
+  reason: string;
+  updatedAt: string;
+}
+
+export interface OperationalResult {
+  personReference: string;
+  branch: string;
+  suppressedCommunicationIds: string[];
+  suppressionStates: PersonCommunicationState[];
+}
+
+export type TrackingLinkInputParameters = {[key: string]: string};
+
+export interface TrackingLinkInput {
+  /** @minLength 1 */
+  baseUrl: string;
+  parameters?: TrackingLinkInputParameters;
+}
+
+export interface CompanyAlias {
+  id: string;
+  salesforceAccountId: string;
+  legalName: string;
+  normalizedMatchingName: string;
+  /** @nullable */
+  approvedDisplayName?: string | null;
+  aliases: string[];
+  language: string;
+  approvalStatus: string;
+}
+
+export interface CompanyAliasInput {
+  salesforceAccountId: string;
+  legalName: string;
+  approvedDisplayName?: string;
+  aliases?: string[];
+  language?: string;
+}
+
+export interface CompanyAliasUpdate {
+  legalName?: string;
+  approvedDisplayName?: string;
+  aliases?: string[];
+  language?: string;
+  approvalStatus?: string;
+}
+
+export interface CompanyAliasResolution {
+  matched: boolean;
+  query: string;
+  displayName: string;
+  company?: CompanyAlias;
+}
+
+export interface ImplementationWorkbook {
+  generatedAt: string;
+  campaign: CampaignPlan;
+  activities: CampaignActivity[];
+  communications: Communication[];
+  links: TrackingLink[];
+  changeEvents: ChangeEvent[];
+}
+
+export type ResolveCompanyAliasParams = {
+name: string;
+};
 

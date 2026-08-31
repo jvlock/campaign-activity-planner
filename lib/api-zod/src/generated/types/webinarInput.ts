@@ -5,6 +5,8 @@
  * Campaign Activity Planner API
  * OpenAPI spec version: 0.1.0
  */
+import type { WebinarScheduleOptions } from './webinarScheduleOptions';
+import type { WebinarSpeakerInput } from './webinarSpeakerInput';
 
 export interface WebinarInput {
   subject: string;
@@ -22,4 +24,15 @@ export interface WebinarInput {
   timezone: string;
   platform: string;
   registrationUrl?: string;
+  subsegment?: string;
+  persona?: string;
+  customerStatus?: string;
+  exclusions?: string[];
+  speakers?: WebinarSpeakerInput[];
+  scheduleOptions?: WebinarScheduleOptions;
+  registrationPending?: boolean;
+  /** @minLength 1 */
+  webinarOwner?: string;
+  /** @minLength 1 */
+  emailMarketingOwner?: string;
 }

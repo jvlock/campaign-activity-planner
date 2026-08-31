@@ -18,5 +18,7 @@ export interface CampaignActivity {
   startTime: string;
   timezone: string;
   owner: string;
+  /** @nullable */
+  activityCode?: string | null;
   version: number;
 }

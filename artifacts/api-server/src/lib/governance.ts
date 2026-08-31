@@ -54,11 +54,11 @@ export class DevelopmentGovernanceAdapter implements GovernanceProvider {
   async generateInternalTitle(parts: string[]): Promise<string> { return parts.filter(Boolean).join(" | "); }
   async reserveCampaignCode(): Promise<string | null> { return null; }
   async reserveActivityCode(): Promise<string | null> { return null; }
-  async generateTrackingParameters(): Promise<Record<string, string>> { return {}; }
+  async generateTrackingParameters(_input: Record<string, string>): Promise<Record<string, string>> { return {}; }
   async validateCampaign(): Promise<{ valid: boolean; issues: string[] }> {
     return { valid: false, issues: ["Authoritative governance provider is not configured"] };
   }
-  async getFiscalAssignment(): Promise<string | null> { return null; }
+  async getFiscalAssignment(_date: string): Promise<string | null> { return null; }
   async getSupersessionStatus(): Promise<{ superseded: boolean; replacementId: string | null }> {
     return { superseded: false, replacementId: null };
   }
@@ -177,21 +177,31 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
   private readonly baseUrl: string;
   private readonly fetchImpl: GovernanceFetch;
   private readonly timeoutMs: number;
+  private readonly serviceToken: string | undefined;
 
   constructor(
     baseUrl = process.env.GOVERNANCE_BASE_URL
       ?? "https://campaign-governance-foundation.replit.app",
     fetchImpl: GovernanceFetch = fetch,
     timeoutMs = 5_000,
+    serviceToken = process.env.GOVERNANCE_SERVICE_TOKEN,
   ) {
     this.baseUrl = baseUrl;
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
+    this.serviceToken = serviceToken;
+  }
+
+  private headers(): Record<string, string> {
+    return {
+      accept: "application/json",
+      ...(this.serviceToken ? { Authorization: `Bearer ${this.serviceToken}` } : {}),
+    };
   }
 
   private async request(path: string): Promise<unknown> {
     const response = await this.fetchImpl(new URL(path, this.baseUrl), {
-      headers: { accept: "application/json" },
+      headers: this.headers(),
       signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!response.ok) {
@@ -233,7 +243,7 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
   async getCampaign(id: string): Promise<GovernanceCampaign | null> {
     const path = `/api/campaigns/${encodeURIComponent(id)}`;
     const response = await this.fetchImpl(new URL(path, this.baseUrl), {
-      headers: { accept: "application/json" },
+      headers: this.headers(),
       signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (response.status === 404) return null;
@@ -282,7 +292,7 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
 
   async reserveCampaignCode(): Promise<string | null> { return null; }
   async reserveActivityCode(): Promise<string | null> { return null; }
-  async generateTrackingParameters(): Promise<Record<string, string>> { return {}; }
+  async generateTrackingParameters(_input: Record<string, string>): Promise<Record<string, string>> { return {}; }
 
   async validateCampaign(): Promise<{ valid: boolean; issues: string[] }> {
     return {
@@ -291,7 +301,7 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
     };
   }
 
-  async getFiscalAssignment(): Promise<string | null> { return null; }
+  async getFiscalAssignment(_date: string): Promise<string | null> { return null; }
   async getSupersessionStatus(): Promise<{ superseded: boolean; replacementId: string | null }> {
     return { superseded: false, replacementId: null };
   }

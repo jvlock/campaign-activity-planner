@@ -5,6 +5,9 @@
  * Campaign Activity Planner API
  * OpenAPI spec version: 0.1.0
  */
+import type { CommunicationQaChecklist } from './communicationQaChecklist';
+import type { CommunicationTokenFallbacks } from './communicationTokenFallbacks';
+import type { CommunicationUtmParameters } from './communicationUtmParameters';
 
 export interface Communication {
   id: string;
@@ -34,4 +37,27 @@ export interface Communication {
   body?: string | null;
   /** @nullable */
   destinationUrl?: string | null;
+  /** @nullable */
+  header?: string | null;
+  /** @nullable */
+  primaryCtaLabel?: string | null;
+  /** @nullable */
+  destinationType?: string | null;
+  /** @nullable */
+  secondaryCtaLabel?: string | null;
+  /** @nullable */
+  secondaryCtaUrl?: string | null;
+  /** @nullable */
+  fromName?: string | null;
+  /** @nullable */
+  replyTo?: string | null;
+  dynamicTokens?: string[];
+  tokenFallbacks?: CommunicationTokenFallbacks;
+  /** @nullable */
+  communicationCode?: string | null;
+  utmParameters?: CommunicationUtmParameters;
+  owner?: string;
+  dependencies?: string[];
+  qaChecklist?: CommunicationQaChecklist;
+  version?: number;
 }

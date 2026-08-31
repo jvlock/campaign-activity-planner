@@ -10,6 +10,14 @@ import type { RescheduleItem } from './rescheduleItem';
 export interface ReschedulePreview {
   oldEventDate: Date;
   newEventDate: Date;
+  /** @nullable */
+  oldStartTime?: string | null;
+  /** @nullable */
+  newStartTime?: string | null;
+  /** @nullable */
+  oldTimezone?: string | null;
+  /** @nullable */
+  newTimezone?: string | null;
   items: RescheduleItem[];
   warnings: string[];
 }

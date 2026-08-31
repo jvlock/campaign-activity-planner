@@ -11,4 +11,11 @@ export interface CampaignUpdate {
   objective?: string;
   owner?: string;
   lifecycleStatus?: string;
+  product?: string;
+  geography?: string;
+  businessUnit?: string;
+  campaignType?: string;
+  audienceSegment?: string;
+  fiscalPeriod?: string;
+  description?: string;
 }

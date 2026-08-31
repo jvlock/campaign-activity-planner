@@ -20,6 +20,13 @@ export interface CampaignPlan {
   owner: string;
   startDate: Date;
   endDate: Date;
+  product: string;
+  geography: string;
+  businessUnit: string;
+  campaignType: string;
+  audienceSegment: string;
+  fiscalPeriod: string;
+  description: string;
   activityCount: number;
   warningCount: number;
   updatedAt: Date;
