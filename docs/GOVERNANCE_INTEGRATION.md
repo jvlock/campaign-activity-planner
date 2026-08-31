@@ -20,12 +20,12 @@
 
 Requests and responses preserve governance record ID, taxonomy version, generated-code timestamp, validation result, superseded references, and authoritative source.
 
-## Development adapter
+## Campaign Governance Foundation adapter
 
-The current adapter is deliberately non-authoritative. It returns no final codes, no taxonomy version, no fiscal assignment, and a failed authoritative validation with a clear reason. Its visible label is:
+The active adapter connects to `https://campaign-governance-foundation.replit.app/`. It currently reads health, campaigns, foundation metadata, and taxonomy through the system's public API.
 
-> Governance status: Pending authoritative assignment
+The Foundation remains authoritative. The Planner does not invent final campaign/activity codes or claim successful validation when the Foundation has not exposed a documented endpoint for that operation. Newly created Planner records therefore remain pending authoritative assignment.
 
-## Proposed external API
+## Remaining API requirements
 
-The production provider should authenticate server-to-server, support idempotency keys for reservations, return immutable reservation IDs, expose taxonomy versions, and distinguish temporary unavailability from validation failures. The Planner must preserve the exact provider response used at creation time.
+The production provider should add authenticated server-to-server access, idempotent code reservations, campaign validation, tracking-parameter generation, fiscal assignment, and explicit supersession lookup. The Planner must preserve the exact provider response used at creation time.

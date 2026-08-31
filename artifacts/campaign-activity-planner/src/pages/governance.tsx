@@ -38,7 +38,7 @@ export default function Governance() {
                 </Badge>
               )}
             </div>
-            <CardDescription>Current connection state to enterprise planner</CardDescription>
+            <CardDescription>Current connection state to the authoritative governance service</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
@@ -53,11 +53,11 @@ export default function Governance() {
             </div>
 
             <div className="bg-muted/30 p-4 rounded-md border text-sm">
-              <p className="font-semibold mb-2">Pending Authority Explanation:</p>
+              <p className="font-semibold mb-2">{status?.connected ? 'Integration scope' : 'Pending authority explanation'}</p>
               <p className="text-muted-foreground leading-relaxed">
-                When campaigns are created in this workspace, they begin in a "Pending" governance state. 
-                They require a two-way sync with <strong>{status?.authoritativeSource || 'the system of record'}</strong> to receive an official tracking ID and budget allocation code. 
-                Until synchronized, activities can be planned but final communications cannot be approved for dispatch.
+                {status?.connected
+                  ? <>Authoritative campaigns and taxonomy can be read from <strong>{status.authoritativeSource}</strong>. New planner records remain pending until documented reservation and validation endpoints are available.</>
+                  : <>Campaigns begin in a pending governance state and require synchronization with <strong>{status?.authoritativeSource || 'the system of record'}</strong> before final approval.</>}
               </p>
             </div>
           </CardContent>
@@ -71,7 +71,7 @@ export default function Governance() {
           <CardContent>
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground border-2 border-dashed rounded-lg bg-muted/10">
               <Server className="h-10 w-10 text-muted mb-3" />
-              <p className="font-medium text-foreground">Audit History Unvailable</p>
+                <p className="font-medium text-foreground">Audit History Unavailable</p>
               <p className="text-sm mt-1 max-w-xs">Detailed sync logs are preserved in the main governance repository.</p>
             </div>
           </CardContent>

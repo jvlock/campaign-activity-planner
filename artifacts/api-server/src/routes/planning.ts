@@ -144,7 +144,8 @@ async function workspace(campaignId: string) {
 }
 
 router.get("/governance/status", async (_req, res): Promise<void> => {
-  res.json({ connected: false, label: governanceProvider.label, authoritativeSource: governanceProvider.source });
+  const connected = await governanceProvider.isConnected();
+  res.json({ connected, label: governanceProvider.label, authoritativeSource: governanceProvider.source });
 });
 
 router.get("/campaigns", async (_req, res): Promise<void> => {
