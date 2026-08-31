@@ -110,20 +110,14 @@ export const ListCampaignsResponseItem = zod.object({
 })
 export const ListCampaignsResponse = zod.array(ListCampaignsResponseItem)
 
-
+export const CreateCampaignHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1)
+})
 export const createCampaignBodyShortTitleMin = 2;
 
 export const createCampaignBodyObjectiveMin = 2;
 
 export const createCampaignBodyOwnerMin = 2;
-
-
-
-
-
-
-
-
 
 
 export const CreateCampaignBody = zod.object({
@@ -444,7 +438,6 @@ export const createWebinarBodyScheduleOptionsIncludeStartNotificationDefault = f
 export const createWebinarBodyScheduleOptionsIncludeRecordingReminderDefault = true;
 
 
-
 export const CreateWebinarBody = zod.object({
   "subject": zod.string(),
   "externalTitle": zod.string(),
@@ -665,8 +658,6 @@ export const RegisterWebinarPersonParams = zod.object({
 })
 
 
-
-
 export const RegisterWebinarPersonBody = zod.object({
   "personReference": zod.string().min(1)
 })
@@ -690,7 +681,6 @@ export const RecordWebinarAttendanceParams = zod.object({
 
 
 export const recordWebinarAttendanceBodyAttendedMinutesMin = 0;
-
 
 
 export const RecordWebinarAttendanceBody = zod.object({
@@ -972,8 +962,6 @@ export const RegisterTrackingLinkParams = zod.object({
 })
 
 
-
-
 export const RegisterTrackingLinkBody = zod.object({
   "baseUrl": zod.string().min(1),
   "parameters": zod.record(zod.string(), zod.string()).optional()
@@ -1081,9 +1069,6 @@ export const GetGovernanceStatusResponse = zod.object({
 })
 
 
-
-
-
 export const GetGovernanceTaxonomyParams = zod.object({
   "scope": zod.coerce.string().min(1)
 })
@@ -1098,5 +1083,4 @@ export const GetGovernanceTaxonomyResponse = zod.object({
   "status": zod.string()
 }))
 })
-
 

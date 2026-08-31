@@ -57,9 +57,13 @@ import { calculateWebinarSchedule } from "../lib/scheduling";
 import { governanceProvider, type GovernanceCampaign } from "../lib/governance";
 import { buildTrackedUrl, containsDirectPii, hasRequiredCampaignDetails, hasRequiredWebinarOwnership, isOpaqueExternalPersonReference } from "../lib/privacy";
 import { normalizeGovernanceTaxonomy } from "../lib/taxonomy";
+import { requirePlannerWrite } from "../middlewares/authorization";
 
 const router: IRouter = Router();
-const actor = "Development User";
+function actor(req: { plannerIdentity?: { id: string; displayName: string } }) {
+  if (!req.plannerIdentity) throw new Error("Verified planner identity is required");
+  return `${req.plannerIdentity.displayName} (${req.plannerIdentity.id})`;
+}
 
 function dateOnly(value: Date | string): string {
   return typeof value === "string" ? value : value.toISOString().slice(0, 10);
@@ -75,6 +79,9 @@ function campaignDto(row: typeof campaignPlansTable.$inferSelect, activityCount 
     governanceStatus: row.governanceStatus,
     governanceRecordId: row.governanceRecordId,
     campaignCode: row.campaignCode,
+    taxonomyVersion: row.taxonomyVersion,
+    fiscalAssignment: row.fiscalAssignment,
+    trackingParameters: row.trackingParameters,
     owner: row.owner,
     startDate: row.startDate,
     endDate: row.endDate,
@@ -196,7 +203,11 @@ async function workspace(campaignId: string) {
 
 router.get("/governance/status", async (_req, res): Promise<void> => {
   const connected = await governanceProvider.isConnected();
-  res.json({ connected, label: governanceProvider.label, authoritativeSource: governanceProvider.source });
+  res.json({
+    connected,
+    label: connected ? governanceProvider.label : "Governance status: Authentication required",
+    authoritativeSource: governanceProvider.source,
+  });
 });
 
 router.get("/governance/taxonomy/:scope", async (req, res): Promise<void> => {
@@ -231,7 +242,8 @@ router.get("/campaigns", async (_req, res): Promise<void> => {
   res.json(campaigns.map((row) => campaignDto(row, countById.get(row.id) ?? 0, 0)));
 });
 
-router.post("/campaigns", async (req, res): Promise<void> => {
+router.post("/campaigns", requirePlannerWrite, async (req, res): Promise<void> => {
+  const auditActor = actor(req);
   const parsed = CreateCampaignBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   if (!hasRequiredCampaignDetails(parsed.data)) {
@@ -241,67 +253,69 @@ router.post("/campaigns", async (req, res): Promise<void> => {
   const startDate = dateOnly(parsed.data.startDate);
   const endDate = dateOnly(parsed.data.endDate);
   const internalTitle = await governanceProvider.generateInternalTitle([parsed.data.shortTitle, startDate, "Campaign"]);
-  const governanceConnected = await governanceProvider.isConnected();
-  let governedCampaign: GovernanceCampaign = {
-    governanceRecordId: null,
-    governanceStatus: "Pending authoritative assignment",
-    internalTitle,
-    campaignCode: null,
-    taxonomyVersion: null,
-    authoritativeSource: governanceProvider.source,
-  };
-  let campaignCode: string | null = null;
-  let fiscalAssignment: string | null = null;
-  let taxonomyVersion: string | null = null;
-  if (governanceConnected) {
-    try {
-      governedCampaign = await governanceProvider.createDraftCampaignRequest({
-        internalTitle,
-        shortTitle: parsed.data.shortTitle,
-        objective: parsed.data.objective,
-        product: parsed.data.product,
-        geography: parsed.data.geography,
-        businessUnit: parsed.data.businessUnit,
-        campaignType: parsed.data.campaignType,
-        audienceSegment: parsed.data.audienceSegment,
-        fiscalPeriod: parsed.data.fiscalPeriod,
-      });
-      [campaignCode, fiscalAssignment, taxonomyVersion] = await Promise.all([
-        governanceProvider.reserveCampaignCode(),
-        governanceProvider.getFiscalAssignment(startDate),
-        governanceProvider.getTaxonomyVersion(),
-      ]);
-    } catch (error) {
-      req.log.warn({ err: error }, "Governance enrichment unavailable during campaign creation");
-    }
+  const idempotencyKey = req.header("Idempotency-Key")?.trim();
+  if (!idempotencyKey) {
+    res.status(400).json({ error: "Idempotency-Key header is required" });
+    return;
   }
-  const [campaign] = await db.insert(campaignPlansTable).values({
-    shortTitle: parsed.data.shortTitle,
-    objective: parsed.data.objective,
-    owner: parsed.data.owner,
-    startDate,
-    endDate,
-    product: parsed.data.product,
-    geography: parsed.data.geography,
-    businessUnit: parsed.data.businessUnit,
-    campaignType: parsed.data.campaignType,
-    audienceSegment: parsed.data.audienceSegment,
-    fiscalPeriod: parsed.data.fiscalPeriod,
-    description: parsed.data.description,
-    internalTitle: governedCampaign.internalTitle,
-    governanceRecordId: governedCampaign.governanceRecordId,
-    governanceStatus: governedCampaign.governanceStatus,
-    authoritativeSource: governedCampaign.authoritativeSource,
-    campaignCode: governedCampaign.campaignCode ?? campaignCode,
-    fiscalAssignment,
-    taxonomyVersion: governedCampaign.taxonomyVersion ?? taxonomyVersion,
-  }).returning();
+  const [existing] = await db.select().from(campaignPlansTable)
+    .where(eq(campaignPlansTable.governanceIdempotencyKey, idempotencyKey));
+  if (existing) { res.status(200).json(campaignDto(existing)); return; }
+  let governed;
+  try {
+    governed = await governanceProvider.createDraftCampaignRequest({
+      name: parsed.data.shortTitle,
+      campaignType: "event",
+      relationshipType: "new",
+      objective: parsed.data.objective,
+      isEvergreen: false,
+      startDate,
+      endDate,
+    }, idempotencyKey);
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "Governance campaign creation failed" });
+    return;
+  }
+  let campaign: typeof campaignPlansTable.$inferSelect;
+  try {
+    [campaign] = await db.insert(campaignPlansTable).values({
+      shortTitle: parsed.data.shortTitle,
+      objective: parsed.data.objective,
+      owner: parsed.data.owner,
+      startDate,
+      endDate,
+      product: parsed.data.product,
+      geography: parsed.data.geography,
+      businessUnit: parsed.data.businessUnit,
+      campaignType: parsed.data.campaignType,
+      audienceSegment: parsed.data.audienceSegment,
+      fiscalPeriod: parsed.data.fiscalPeriod,
+      description: parsed.data.description,
+      internalTitle: governed.internalTitle || internalTitle,
+      governanceRecordId: governed.governanceRecordId,
+      governanceStatus: governed.governanceStatus,
+      campaignCode: governed.campaignCode,
+      taxonomyVersion: governed.taxonomyVersion,
+      fiscalAssignment: governed.fiscalAssignment,
+      governanceIdempotencyKey: idempotencyKey,
+      governanceValidation: governed.validation,
+      trackingParameters: governed.trackingParameters,
+      supersededByGovernanceRecordId: governed.supersession?.replacementId ?? null,
+      governanceProviderResponse: governed.providerResponse,
+      authoritativeSource: governanceProvider.source,
+      createdBy: auditActor,
+      updatedBy: auditActor,
+    }).returning();
+  } catch (error) {
+    const [retried] = await db.select().from(campaignPlansTable)
+      .where(eq(campaignPlansTable.governanceIdempotencyKey, idempotencyKey));
+    if (retried) { res.status(200).json(campaignDto(retried)); return; }
+    throw error;
+  }
   await db.insert(changeEventsTable).values({
     recordType: "campaign_plan", recordId: campaign.id, eventType: "created",
-    summary: governanceConnected
-      ? "Campaign plan created with pending governance assignment"
-      : "Campaign plan created; authoritative governance unavailable and retry is required",
-    actor, afterValue: campaign,
+    summary: "Campaign plan created with authoritative governance assignment", actor: auditActor,
+    afterValue: campaign,
   });
   res.status(201).json(campaignDto(campaign));
 });
@@ -348,23 +362,25 @@ router.get("/campaigns/:campaignId", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.patch("/campaigns/:campaignId", async (req, res): Promise<void> => {
+router.patch("/campaigns/:campaignId", requirePlannerWrite, async (req, res): Promise<void> => {
+  const auditActor = actor(req);
   const params = UpdateCampaignParams.safeParse(req.params);
   const body = UpdateCampaignBody.safeParse(req.body);
   if (!params.success || !body.success) { res.status(400).json({ error: "Invalid campaign update" }); return; }
   const [before] = await db.select().from(campaignPlansTable).where(eq(campaignPlansTable.id, params.data.campaignId));
   if (!before) { res.status(404).json({ error: "Campaign not found" }); return; }
   const [updated] = await db.update(campaignPlansTable).set({
-    ...body.data, version: before.version + 1, updatedAt: new Date(), updatedBy: actor,
+    ...body.data, version: before.version + 1, updatedAt: new Date(), updatedBy: auditActor,
   }).where(eq(campaignPlansTable.id, params.data.campaignId)).returning();
   await db.insert(changeEventsTable).values({
     recordType: "campaign_plan", recordId: updated.id, eventType: "updated",
-    summary: "Campaign plan updated", actor, beforeValue: before, afterValue: updated,
+    summary: "Campaign plan updated", actor: auditActor, beforeValue: before, afterValue: updated,
   });
   res.json(campaignDto(updated));
 });
 
-router.post("/campaigns/:campaignId/webinar", async (req, res): Promise<void> => {
+router.post("/campaigns/:campaignId/webinar", requirePlannerWrite, async (req, res): Promise<void> => {
+  const auditActor = actor(req);
   const params = CreateWebinarParams.safeParse(req.params);
   const body = CreateWebinarBody.safeParse(req.body);
   if (!params.success || !body.success) { res.status(400).json({ error: "Invalid webinar setup" }); return; }
@@ -379,23 +395,51 @@ router.post("/campaigns/:campaignId/webinar", async (req, res): Promise<void> =>
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
   const eventDate = dateOnly(body.data.eventDate);
   const title = await governanceProvider.generateInternalTitle([body.data.product, eventDate, "Webinar", body.data.subject, body.data.segment]);
-  let activityCode: string | null = null;
+  if (!campaign.governanceRecordId) { res.status(409).json({ error: "Campaign does not have an authoritative governance identifier" }); return; }
+  let governedActivity;
   try {
-    if (await governanceProvider.isConnected()) activityCode = await governanceProvider.reserveActivityCode();
+    governedActivity = await governanceProvider.createActivity(campaign.governanceRecordId, {
+      name: body.data.subject,
+      deliveryStartDate: eventDate,
+      deliveryEndDate: eventDate,
+      authoritativeCostMinor: "0",
+      currency: "USD",
+      configurationId: process.env.GOVERNANCE_WEBINAR_CONFIGURATION_ID,
+      activityType: "events",
+      status: "draft",
+      owner: campaign.owner,
+      region: body.data.geography,
+      language: body.data.language,
+      landingDestination: body.data.registrationUrl || undefined,
+      externalIds: {},
+      configurationAnswers: { eventType: "individual event" },
+      productValueIds: [],
+    }, `planner-activity:${campaign.id}:${body.data.subject}:${eventDate}`);
   } catch (error) {
-    req.log.warn({ err: error, campaignId: campaign.id }, "Activity code reservation unavailable");
+    res.status(502).json({ error: error instanceof Error ? error.message : "Governance activity creation failed" });
+    return;
   }
+  const [existingActivity] = await db.select().from(campaignActivitiesTable)
+    .where(eq(campaignActivitiesTable.governanceRecordId, governedActivity.governanceRecordId));
+  if (existingActivity) { res.status(200).json(await workspace(campaign.id)); return; }
   const [activity] = await db.insert(campaignActivitiesTable).values({
     campaignId: campaign.id, activityType: "Webinar", internalTitle: title,
     shortTitle: body.data.subject, owner: webinarOwner, anchorDate: eventDate,
     anchorTime: body.data.startTime, timezone: body.data.timezone,
-    activityCode,
+    governanceRecordId: governedActivity.governanceRecordId,
+    governanceStatus: governedActivity.governanceStatus,
+    activityCode: governedActivity.activityCode,
+    taxonomyVersion: governedActivity.taxonomyVersion,
+    authoritativeSource: governedActivity.authoritativeSource,
+    governanceProviderResponse: governedActivity.providerResponse,
+    createdBy: auditActor, updatedBy: auditActor,
   }).returning();
   const [webinar] = await db.insert(webinarEventsTable).values({
     activityId: activity.id, externalTitle: body.data.externalTitle, subject: body.data.subject,
     product: body.data.product, topic: body.data.topic, objective: body.data.objective,
     successMeasure: body.data.successMeasure, durationMinutes: body.data.durationMinutes, platform: body.data.platform,
     registrationPending, webinarOwner, emailMarketingOwner,
+    createdBy: auditActor, updatedBy: auditActor,
   }).returning();
   for (const speaker of body.data.speakers ?? []) {
     await db.insert(webinarSpeakersTable).values({
@@ -404,6 +448,7 @@ router.post("/campaigns/:campaignId/webinar", async (req, res): Promise<void> =>
       title: speaker.title,
       organization: speaker.organization,
       bio: speaker.bio,
+      createdBy: auditActor, updatedBy: auditActor,
     });
   }
   const [audience] = await db.insert(audienceDefinitionsTable).values({
@@ -411,11 +456,13 @@ router.post("/campaigns/:campaignId/webinar", async (req, res): Promise<void> =>
     segment: body.data.segment, geography: body.data.geography, language: body.data.language,
     subsegment: body.data.subsegment, persona: body.data.persona,
     customerStatus: body.data.customerStatus, exclusions: body.data.exclusions ?? [],
+    createdBy: auditActor, updatedBy: auditActor,
   }).returning();
   for (const name of ["Recruitment", "Registered", "Attended", "No Show", "Did Not Register"]) {
     await db.insert(audienceBranchesTable).values({
       audienceDefinitionId: audience.id, key: name.toLowerCase().replaceAll(" ", "-"), name,
       suppressionRule: name === "Recruitment" ? { exitOn: "registration" } : {},
+      createdBy: auditActor, updatedBy: auditActor,
     });
   }
   const schedules = calculateWebinarSchedule(eventDate, [], body.data.scheduleOptions);
@@ -427,43 +474,50 @@ router.post("/campaigns/:campaignId/webinar", async (req, res): Promise<void> =>
       enterBranch: "Registered",
       effective: "immediate",
     },
+    createdBy: auditActor, updatedBy: auditActor,
   });
   await db.insert(webinarSessionsTable).values({
     webinarEventId: webinar.id, sessionDate: eventDate, startTime: body.data.startTime,
     durationMinutes: body.data.durationMinutes, timezone: body.data.timezone,
+    createdBy: auditActor, updatedBy: auditActor,
   });
   for (const item of schedules) {
     const [communication] = await db.insert(communicationsTable).values({
       activityId: activity.id, audienceBranch: item.branch, communicationType: item.type,
       internalTitle: `${title} | ${item.title} ${item.rule}`, shortTitle: item.title, owner: emailMarketingOwner,
-      activityCode,
+      activityCode: governedActivity.activityCode,
+      createdBy: auditActor, updatedBy: auditActor,
     }).returning();
     const [rule] = await db.insert(scheduleRulesTable).values({
       communicationId: communication.id, relativeRule: item.rule, offsetDays: item.offsetDays,
       offsetMinutes: item.offsetMinutes ?? 0,
       direction: item.direction, businessDayStrategy: item.businessDayStrategy,
       audienceLocalTime: item.branch === "Recruitment", sendTime: item.sendTime,
+      createdBy: auditActor, updatedBy: auditActor,
     }).returning();
     await db.insert(scheduledInstancesTable).values({
       communicationId: communication.id, scheduleRuleId: rule.id,
       originalCalculatedDate: item.originalDate, adjustedDate: item.scheduledDate,
       adjustmentReason: item.adjustmentReason, sendTime: item.sendTime, timezone: body.data.timezone,
+      createdBy: auditActor, updatedBy: auditActor,
     });
     await db.insert(contentVersionsTable).values({
       communicationId: communication.id, versionNumber: 1,
       subject: item.type === "Invitation" ? `You're invited: ${body.data.externalTitle}` : null,
       preheader: item.title, body: "", isCurrent: true,
+      createdBy: auditActor, updatedBy: auditActor,
     });
   }
   if (body.data.registrationUrl) {
     await db.insert(destinationsTable).values({
       activityId: activity.id, internalTitle: `${title} | Registration`,
       destinationType: "registration", baseUrl: body.data.registrationUrl, validationStatus: "Pending",
+      createdBy: auditActor, updatedBy: auditActor,
     });
   }
   await db.insert(changeEventsTable).values({
     recordType: "campaign_activity", recordId: activity.id, eventType: "created",
-    summary: `Webinar created and ${schedules.length} communications scheduled`, actor, afterValue: activity,
+    summary: `Webinar created and ${schedules.length} communications scheduled`, actor: auditActor, afterValue: activity,
   });
   res.status(201).json(await workspace(campaign.id));
 });
@@ -506,7 +560,7 @@ async function reschedulePreview(activityId: string, eventDate: string, startTim
   };
 }
 
-router.post("/activities/:activityId/reschedule", async (req, res): Promise<void> => {
+router.post("/activities/:activityId/reschedule", requirePlannerWrite, async (req, res): Promise<void> => {
   const params = PreviewRescheduleParams.safeParse(req.params);
   const body = PreviewRescheduleBody.safeParse(req.body);
   if (!params.success || !body.success) { res.status(400).json({ error: "Invalid reschedule request" }); return; }
@@ -515,7 +569,8 @@ router.post("/activities/:activityId/reschedule", async (req, res): Promise<void
   res.json(preview);
 });
 
-router.post("/activities/:activityId/confirm-reschedule", async (req, res): Promise<void> => {
+router.post("/activities/:activityId/confirm-reschedule", requirePlannerWrite, async (req, res): Promise<void> => {
+  const auditActor = actor(req);
   const params = ConfirmRescheduleParams.safeParse(req.params);
   const body = ConfirmRescheduleBody.safeParse(req.body);
   if (!params.success || !body.success) { res.status(400).json({ error: "Invalid reschedule request" }); return; }
@@ -530,6 +585,7 @@ router.post("/activities/:activityId/confirm-reschedule", async (req, res): Prom
       timezone: body.data.timezone ?? before.timezone,
       version: before.version + 1,
       updatedAt: new Date(),
+      updatedBy: auditActor,
     }).where(eq(campaignActivitiesTable.id, params.data.activityId));
     const [webinar] = await tx.select().from(webinarEventsTable)
       .where(eq(webinarEventsTable.activityId, before.id));
@@ -539,6 +595,7 @@ router.post("/activities/:activityId/confirm-reschedule", async (req, res): Prom
         startTime: body.data.startTime ?? before.anchorTime ?? "00:00",
         timezone: body.data.timezone ?? before.timezone ?? "UTC",
         updatedAt: new Date(),
+        updatedBy: auditActor,
       }).where(eq(webinarSessionsTable.webinarEventId, webinar.id));
     }
     for (const item of preview.items.filter((candidate) => candidate.action === "Move")) {
@@ -547,11 +604,12 @@ router.post("/activities/:activityId/confirm-reschedule", async (req, res): Prom
         originalCalculatedDate: item.proposedDate,
         timezone: body.data.timezone ?? before.timezone ?? "UTC",
         updatedAt: new Date(),
+        updatedBy: auditActor,
       }).where(eq(scheduledInstancesTable.communicationId, item.communicationId));
     }
     await tx.insert(changeEventsTable).values({
       recordType: "campaign_activity", recordId: before.id, eventType: "rescheduled",
-      summary: `Webinar moved from ${preview.oldEventDate} to ${preview.newEventDate}`, actor,
+      summary: `Webinar moved from ${preview.oldEventDate} to ${preview.newEventDate}`, actor: auditActor,
       beforeValue: { eventDate: preview.oldEventDate, schedule: preview.items },
       afterValue: { eventDate: preview.newEventDate, schedule: preview.items },
     });
@@ -559,7 +617,8 @@ router.post("/activities/:activityId/confirm-reschedule", async (req, res): Prom
   res.json(await workspace(before.campaignId));
 });
 
-router.patch("/communications/:communicationId", async (req, res): Promise<void> => {
+router.patch("/communications/:communicationId", requirePlannerWrite, async (req, res): Promise<void> => {
+  const auditActor = actor(req);
   const params = UpdateCommunicationParams.safeParse(req.params);
   const body = UpdateCommunicationBody.safeParse(req.body);
   if (!params.success || !body.success) { res.status(400).json({ error: "Invalid communication update" }); return; }
@@ -604,7 +663,7 @@ router.patch("/communications/:communicationId", async (req, res): Promise<void>
     ...(body.data.owner !== undefined ? { owner: body.data.owner } : {}),
     ...(body.data.dependencies !== undefined ? { dependencies: body.data.dependencies } : {}),
     ...(body.data.qaChecklist !== undefined ? { qaChecklist: body.data.qaChecklist } : {}),
-    version: before.version + 1, updatedAt: new Date(),
+    version: before.version + 1, updatedAt: new Date(), updatedBy: auditActor,
   };
   const contentFieldsChanged = [
     "subject", "preheader", "body", "header", "primaryCtaLabel", "secondaryCtaLabel",
@@ -614,7 +673,7 @@ router.patch("/communications/:communicationId", async (req, res): Promise<void>
     const [updated] = await tx.update(communicationsTable).set(communicationPatch)
       .where(eq(communicationsTable.id, before.id)).returning();
     if (contentFieldsChanged) {
-      if (currentContent) await tx.update(contentVersionsTable).set({ isCurrent: false, updatedAt: new Date() })
+      if (currentContent) await tx.update(contentVersionsTable).set({ isCurrent: false, updatedAt: new Date(), updatedBy: auditActor })
         .where(eq(contentVersionsTable.id, currentContent.id));
       await tx.insert(contentVersionsTable).values({
         communicationId: before.id, versionNumber: (currentContent?.versionNumber ?? 0) + 1,
@@ -626,17 +685,19 @@ router.patch("/communications/:communicationId", async (req, res): Promise<void>
         senderName: body.data.fromName ?? currentContent?.senderName,
         replyToAddress: body.data.replyTo ?? currentContent?.replyToAddress,
         tokenFallbacks: body.data.tokenFallbacks ?? currentContent?.tokenFallbacks ?? {}, isCurrent: true,
+        createdBy: auditActor, updatedBy: auditActor,
       });
     }
     if (body.data.destinationUrl !== undefined || body.data.destinationType !== undefined) {
       if (existingDestination) await tx.update(destinationsTable).set({
       ...(body.data.destinationUrl !== undefined ? { baseUrl: body.data.destinationUrl } : {}),
       ...(body.data.destinationType !== undefined ? { destinationType: body.data.destinationType } : {}),
-      updatedAt: new Date(),
+      updatedAt: new Date(), updatedBy: auditActor,
       }).where(eq(destinationsTable.id, existingDestination.id));
       else await tx.insert(destinationsTable).values({
       activityId: before.activityId, internalTitle: `${before.internalTitle} | Destination`,
       destinationType: body.data.destinationType ?? "registration", baseUrl: body.data.destinationUrl,
+      createdBy: auditActor, updatedBy: auditActor,
       });
     }
     if (utmParameters && rebuiltTrackedUrl) {
@@ -644,7 +705,7 @@ router.patch("/communications/:communicationId", async (req, res): Promise<void>
         parameters: utmParameters,
         finalTrackedUrl: rebuiltTrackedUrl,
         codeGenerationTimestamp: new Date(),
-        updatedAt: new Date(),
+        updatedAt: new Date(), updatedBy: auditActor,
       }).where(eq(trackingLinksTable.id, existingLink.id));
       else if (existingDestination?.baseUrl) await tx.insert(trackingLinksTable).values({
           communicationId: before.id,
@@ -654,11 +715,12 @@ router.patch("/communications/:communicationId", async (req, res): Promise<void>
           parameters: utmParameters,
           validationResult: { valid: true, piiRejected: false },
           codeGenerationTimestamp: new Date(),
+          createdBy: auditActor, updatedBy: auditActor,
         });
       }
     await tx.insert(changeEventsTable).values({
       recordType: "communication", recordId: before.id, eventType: "updated",
-      summary: "Communication content or status updated", actor, beforeValue: before, afterValue: updated,
+      summary: "Communication content or status updated", actor: auditActor, beforeValue: before, afterValue: updated,
     });
   });
   const [dto] = await communicationDtos([before.activityId]);

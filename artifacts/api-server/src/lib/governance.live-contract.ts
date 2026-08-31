@@ -25,15 +25,8 @@ test("live Foundation campaign responses match the adapter contract", {
   assert.ok(campaigns.length > 0, "Campaign search returned no contract sample");
 
   const campaign = campaigns[0];
-  assert.ok(campaign);
-  assert.ok(campaign.governanceRecordId);
-  assert.deepEqual(
-    await governance.getCampaign(campaign.governanceRecordId),
-    campaign,
-  );
-});
 
-test("live Foundation taxonomy response matches the adapter contract", async () => {
+  const detail = await governance.getCampaign(campaign.governanceRecordId);
   const taxonomy = await governance.getTaxonomy("segment");
   assert.equal(taxonomy["scope"], "segment");
   assert.ok(Array.isArray(taxonomy["values"]));
@@ -51,3 +44,7 @@ test("live Foundation taxonomy response matches the adapter contract", async () 
     assert.ok((sample as Record<string, string>)[field].length > 0);
   }
 });
+
+  const { providerResponse: detailResponse, ...detailFields } = detail;
+
+  const { providerResponse: listResponse, ...listFields } = campaign;

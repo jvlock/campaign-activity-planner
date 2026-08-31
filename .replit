@@ -41,3 +41,8 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+GOVERNANCE_WEBINAR_CONFIGURATION_ID = "8ddc7595-d2f0-4f31-8d81-65938b2b3ea8"

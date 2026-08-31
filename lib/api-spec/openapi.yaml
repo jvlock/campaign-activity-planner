@@ -47,6 +47,11 @@ paths:
     post:
       operationId: createCampaign
       tags: [campaigns]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 1 }
       requestBody:
         required: true
         content:
