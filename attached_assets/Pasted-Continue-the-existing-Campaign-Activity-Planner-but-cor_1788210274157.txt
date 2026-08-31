@@ -1,0 +1,344 @@
+Continue the existing Campaign Activity Planner, but correct its architecture and complete a functional webinar MVP.
+
+Do not rebuild the UI from scratch. Preserve the current visual design where practical.
+
+PRIMARY ARCHITECTURE
+
+The system must have distinct hierarchical records:
+
+1. Campaign
+2. Activity
+3. Communication
+4. Link/CTA
+
+A webinar is an Activity belonging to a Campaign. It is not itself the parent Campaign.
+
+The existing “New Campaign” button incorrectly opens the New Webinar workflow. Fix this.
+
+Add:
+
+- /campaigns/new — creates a parent campaign
+- /activities/new?type=webinar — creates a webinar under a campaign
+- /campaigns/:id — overarching campaign workspace
+- /activities/:id — webinar workspace
+- /communications/:id — individual communication editor
+
+GOVERNANCE FOUNDATION
+
+Treat the existing Campaign Governance Foundation as the authoritative system for:
+
+- Campaign hierarchy
+- Controlled taxonomy values
+- Campaign codes
+- Activity codes
+- Communication codes
+- UTM parameters
+- Fiscal period
+- Region, segment, product, objective, channel, and activity-type values
+- Standardized internal naming
+- Governance approval status
+
+Create a GovernanceProvider interface so the planner is not tightly coupled to one implementation.
+
+The planner must not maintain independent duplicate dropdown lists for governed fields.
+
+If the Governance service is unavailable:
+
+- Show “Governance unavailable” rather than an endless Loading state
+- Allow a campaign to be saved only as Draft — Governance Pending
+- Do not fabricate final codes
+- Allow a retry
+- Store the last successful synchronization timestamp
+- Log the failed synchronization attempt
+
+CAMPAIGN CREATION
+
+Create a parent campaign form before a webinar can be added.
+
+Required campaign fields:
+
+- Campaign name
+- Campaign type
+- Business unit
+- Region
+- Product or solution
+- Audience segment
+- Objective
+- Fiscal period
+- Campaign owner
+- Planned start and end dates
+- Description
+- Governance status
+
+Generate a standardized internal campaign title from governed values.
+
+Recommended readable title pattern:
+
+[Business/Product] | [YYYY-MM] | [Campaign Type] | [Topic] | [Target Profile]
+
+Example:
+
+Private Assets | 2026-07 | Webinar Program | Private Credit Outlook | Asset Owner CIOs
+
+Also store a short display title separately.
+
+WEBINAR CREATION
+
+The webinar wizard must require:
+
+- Parent campaign
+- Internal topic
+- Public webinar title
+- Objective
+- Target segment/profile
+- Geography
+- Language
+- Product
+- Event date
+- Start time
+- Audience timezone
+- Duration
+- Platform
+- Registration URL or pending-URL status
+- Webinar owner
+- Email marketing owner
+
+Do not let the user proceed past a step until required fields in that step are valid. Show field-level error messages.
+
+Do not default the event to today. Require deliberate date selection.
+
+Before saving, show a Review and Schedule Preview step.
+
+WEBINAR SCHEDULE ENGINE
+
+Store schedule rules as configurable data, not hard-coded UI logic.
+
+Initial default template:
+
+Recruitment track:
+- Invitation 1: D-21 at 10:00 audience-local time
+- Invitation 2: D-14 at 10:00
+- Invitation 3: D-7 at 10:00
+- Final invitation: D-1 at 10:00
+
+Registrant track:
+- Confirmation: immediately after registration
+- Reminder: 24 hours before the webinar
+- Reminder: 30 minutes before the webinar
+- Optional “Starting now” reminder at event start
+
+Post-event branching:
+- Attended → Thank-you email on the next business day
+- Did not attend → Sorry-we-missed-you email on the next business day
+- Optional replay/nurture email at D+7
+- Optional explicit handraiser CTA for attendees and/or no-shows
+
+Business-date behavior:
+- If a pre-event communication lands on Saturday, Sunday, or a configured holiday, move it backward to the preceding valid business day
+- Never shift a pre-event communication later unless a user explicitly overrides it
+- For post-event communication, shift forward to the next business day
+- Store both the calculated date and any manual override
+- Record the reason for every adjustment
+
+Registration suppresses all remaining recruitment invitations.
+
+Attendance must branch recipients into attendee and no-show tracks.
+
+Attendance by itself is not a handraiser signal. A handraiser requires an explicit action such as requesting contact, a consultation, a demo, or more information.
+
+CALENDAR AND JOURNEY
+
+Add campaign-level and webinar-level views:
+
+- Month calendar
+- Week calendar
+- Agenda/list
+- Journey view organized by track
+- Table view
+- Zoom/filter by campaign, activity, track, status, owner, and channel
+
+Calendar cards must show:
+
+- Short communication title
+- Date and time
+- Track
+- Audience
+- Status
+- Warning indicator
+
+Clicking a communication must open a right-side drawer or detail page with these tabs:
+
+1. Content
+2. Audience
+3. Timing
+4. Destination
+5. Dynamic Fields
+6. Governance
+7. QA and Approval
+8. Change History
+
+COMMUNICATION EDITOR
+
+Every email record must include:
+
+- Standardized internal title
+- Short calendar title
+- Communication type and sequence number
+- Subject line
+- Preheader
+- Header
+- Body content
+- Primary CTA label
+- Destination type
+- Destination URL
+- Secondary CTA
+- From name
+- Reply-to
+- Audience
+- Suppression rules
+- Scheduled date, time, and timezone
+- Salesforce dynamic tokens
+- Fallback values
+- Campaign, activity, and communication codes
+- UTM parameters
+- Owner
+- Dependencies
+- Status
+- QA checklist
+- Approval state
+- Version and change history
+
+Example communication title:
+
+Private Assets | 2026-07-26 | Webinar | Private Credit Outlook | Asset Owner CIOs | Invitation 01 D-21
+
+CODES AND UTM
+
+Generate codes through Governance for every campaign, webinar activity, communication, and tracked link.
+
+Each record must have:
+
+- Stable application UUID
+- Governance record ID
+- Human-readable governed code
+- Code status
+- Last synchronized timestamp
+
+Create UTM values centrally rather than typing them independently into emails.
+
+Example mapping:
+
+- utm_source = approved delivery source
+- utm_medium = email
+- utm_campaign = governed campaign code
+- utm_content = governed communication code
+- utm_term = approved audience/cohort code when permitted
+
+Never include names, email addresses, Salesforce IDs, or other personally identifiable data in UTM values.
+
+Create a link registry so the final tracked URL is generated from:
+
+base destination URL + governed UTM values
+
+EVENT RESCHEDULING
+
+When the webinar date, time, or timezone changes:
+
+1. Show the original and proposed event values
+2. Preview every affected communication
+3. Recalculate all unsent, uncompleted, and unpinned activities
+4. Preserve sent, completed, cancelled, and manually pinned activities
+5. Re-run weekend, holiday, and collision rules
+6. Update event-date tokens and tracked destinations
+7. Require user confirmation
+8. Write a complete audit entry
+
+Allow individual communications to be pinned so they do not move automatically.
+
+COMPANY NAME NORMALIZATION
+
+Do not build company personalization by simply cleaning Salesforce Account.Name at send time.
+
+Use this precedence:
+
+1. Account.Marketing_Display_Name__c
+2. Approved company alias table
+3. Safe normalized fallback
+4. Omit company personalization if confidence is insufficient
+
+Create a CompanyNameAlias model with:
+
+- raw Salesforce name
+- approved display name
+- account ID
+- status
+- source
+- approved by
+- approved date
+- notes
+
+Example:
+
+International Business Machines Corporation → IBM
+
+Users must be able to preview the resolved company name and flag incorrect mappings.
+
+EXPORT
+
+Add “Export Implementation Workbook.”
+
+The workbook must include:
+
+- Campaign Summary
+- Calendar Schedule
+- Email Deliverables
+- Landing Pages and CTAs
+- Salesforce Fields and Dynamic Tokens
+- Audience and Suppression Logic
+- Company Display Names
+- Governance Codes and UTM
+- Approvals and QA
+- Change History
+
+Include exact dates, times, timezones, content, URLs, tokens, fallback values, ownership, dependencies, approval status, and warnings.
+
+ACCEPTANCE TEST
+
+Create an automated acceptance test using a webinar on Sunday, May 31, 2026.
+
+Expected recruitment dates:
+
+- D-21 falls on Sunday, May 10 → shift backward to Friday, May 8
+- D-14 falls on Sunday, May 17 → shift backward to Friday, May 15
+- D-7 falls on Sunday, May 24 → shift backward to Friday, May 22
+- D-1 falls on Saturday, May 30 → shift backward to Friday, May 29
+
+The test must also verify:
+
+- Registration suppresses future invitations
+- Confirmation is immediate
+- 24-hour and 30-minute reminders are created
+- Attendee and no-show branches are created
+- Post-event emails shift to the next business day
+- Moving the event recalculates unpinned communications
+- Sent and pinned communications do not move
+- Governance codes and UTM values appear on all records
+- Exported workbook contains the final dates and times
+
+DELIVERY ORDER
+
+Complete this work in the following order:
+
+1. Fix Campaign versus Activity hierarchy
+2. Fix wizard validation
+3. Fix Governance loading/error state and integration interface
+4. Implement webinar schedule engine with automated tests
+5. Add schedule preview
+6. Add calendar, journey, and table views
+7. Add communication editor
+8. Add rescheduling workflow
+9. Add code, UTM, and link generation
+10. Add company-display-name controls
+11. Add implementation workbook export
+
+Do not add additional campaign types until the webinar workflow passes the acceptance test. Design the data model and template engine so additional activities can be added later without changing the core architecture.
