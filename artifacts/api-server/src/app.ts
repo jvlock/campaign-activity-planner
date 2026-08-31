@@ -1,11 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { loadPlannerIdentity } from "./middlewares/auth";
-import { plannerCorsOptions } from "./lib/cors";
 
 const app: Express = express();
 
@@ -28,11 +25,9 @@ app.use(
     },
   }),
 );
-app.use(cors(plannerCorsOptions));
-app.use(cookieParser());
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(loadPlannerIdentity);
 
 app.use("/api", router);
 

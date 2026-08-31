@@ -1,6 +1,5 @@
 export type GovernanceRecordStatus =
   | "Authoritative"
-  | "Authoritative draft"
   | "Pending authoritative assignment"
   | "Superseded";
 
@@ -11,29 +10,15 @@ export interface GovernanceCampaign {
   campaignCode: string | null;
   taxonomyVersion: string | null;
   authoritativeSource: string;
-  fiscalAssignment: string | null;
-  trackingParameters: Record<string, string> | null;
-  validation: { valid: boolean; issues: string[] | null } | null;
-  supersession: { superseded: boolean; replacementId: string | null } | null;
-  providerResponse: Record<string, unknown>;
 }
 
-export interface GovernanceActivity {
-  governanceRecordId: string;
-  governanceStatus: GovernanceRecordStatus;
-  activityCode: string | null;
-  taxonomyVersion: string | null;
-  authoritativeSource: string;
-  providerResponse: Record<string, unknown>;
-}
 export interface GovernanceProvider {
   readonly label: string;
   readonly source: string;
   isConnected(): Promise<boolean>;
   searchCampaigns(query: string): Promise<GovernanceCampaign[]>;
   getCampaign(id: string): Promise<GovernanceCampaign | null>;
-  createDraftCampaignRequest(input: Record<string, unknown>, idempotencyKey: string): Promise<GovernanceCampaign>;
-  createActivity(campaignId: string, input: Record<string, unknown>, idempotencyKey: string): Promise<GovernanceActivity>;
+  createDraftCampaignRequest(input: Record<string, unknown>): Promise<GovernanceCampaign>;
   getTaxonomy(scope: string): Promise<Record<string, unknown>>;
   getTaxonomyVersion(): Promise<string | null>;
   getNamingRules(): Promise<Record<string, unknown>>;
@@ -41,22 +26,18 @@ export interface GovernanceProvider {
   reserveCampaignCode(): Promise<string | null>;
   reserveActivityCode(): Promise<string | null>;
   generateTrackingParameters(input: Record<string, string>): Promise<Record<string, string>>;
-  validateCampaign(input: Record<string, unknown>): Promise<{ valid: boolean; issues: string[] | null }>;
+  validateCampaign(input: Record<string, unknown>): Promise<{ valid: boolean; issues: string[] }>;
   getFiscalAssignment(date: string): Promise<string | null>;
   getSupersessionStatus(id: string): Promise<{ superseded: boolean; replacementId: string | null }>;
 }
 
 export class DevelopmentGovernanceAdapter implements GovernanceProvider {
   readonly label = "Governance status: Pending authoritative assignment";
-
   readonly source = "Development Governance Adapter";
 
   async isConnected(): Promise<boolean> { return false; }
-
   async searchCampaigns(): Promise<GovernanceCampaign[]> { return []; }
-
   async getCampaign(): Promise<GovernanceCampaign | null> { return null; }
-
   async createDraftCampaignRequest(input: Record<string, unknown>): Promise<GovernanceCampaign> {
     return {
       governanceRecordId: null,
@@ -65,52 +46,28 @@ export class DevelopmentGovernanceAdapter implements GovernanceProvider {
       campaignCode: null,
       taxonomyVersion: null,
       authoritativeSource: this.source,
-      fiscalAssignment: null,
-      trackingParameters: {},
-      validation: { valid: false, issues: ["Authoritative governance provider is not configured"] },
-      supersession: { superseded: false, replacementId: null },
-      providerResponse: {},
     };
   }
-
   async getTaxonomy(): Promise<Record<string, unknown>> { return { status: "unavailable" }; }
-
   async getTaxonomyVersion(): Promise<string | null> { return null; }
-
   async getNamingRules(): Promise<Record<string, unknown>> { return { status: "development-pattern-only" }; }
-
   async generateInternalTitle(parts: string[]): Promise<string> { return parts.filter(Boolean).join(" | "); }
-
   async reserveCampaignCode(): Promise<string | null> { return null; }
-
   async reserveActivityCode(): Promise<string | null> { return null; }
-
   async generateTrackingParameters(_input: Record<string, string>): Promise<Record<string, string>> { return {}; }
-
-  async validateCampaign(): Promise<{ valid: boolean; issues: string[] | null }> {
+  async validateCampaign(): Promise<{ valid: boolean; issues: string[] }> {
     return { valid: false, issues: ["Authoritative governance provider is not configured"] };
   }
-
   async getFiscalAssignment(_date: string): Promise<string | null> { return null; }
-
   async getSupersessionStatus(): Promise<{ superseded: boolean; replacementId: string | null }> {
     return { superseded: false, replacementId: null };
   }
-
-  async createActivity(): Promise<GovernanceActivity> { throw new Error("Authoritative governance provider is not configured"); }
 }
 
 type FoundationCampaign = {
   campaignKey: string;
   name: string;
   status: string;
-  taxonomyVersion?: string;
-  fiscalAssignment?: string;
-  fiscalPeriod?: string;
-  trackingParameters?: Record<string, string>;
-  validation?: { valid?: boolean; issues?: string[] };
-  supersededByCampaignKey?: string | null;
-  [key: string]: unknown;
 };
 
 type FoundationSummary = {
@@ -153,7 +110,11 @@ function parseCampaign(value: unknown, endpoint: string): FoundationCampaign {
   if (typeof value["status"] !== "string" || value["status"].length === 0) {
     throw new GovernanceContractError(endpoint, "status must be a non-empty string");
   }
-  return value as FoundationCampaign;
+  return {
+    campaignKey: value["campaignKey"],
+    name: value["name"],
+    status: value["status"],
+  };
 }
 
 function parseCampaignList(value: unknown, endpoint: string): FoundationCampaign[] {
@@ -212,41 +173,35 @@ function parseTaxonomyValues(value: unknown, endpoint: string): FoundationTaxono
 
 export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
   readonly label = "Governance status: Connected to Campaign Governance Foundation";
-
   readonly source = "Campaign Governance Foundation";
-
   private readonly baseUrl: string;
-
   private readonly fetchImpl: GovernanceFetch;
-
   private readonly timeoutMs: number;
+  private readonly serviceToken: string | undefined;
 
   constructor(
     baseUrl = process.env.GOVERNANCE_BASE_URL
       ?? "https://campaign-governance-foundation.replit.app",
-    fetchImplOrToken: GovernanceFetch | string = fetch,
+    fetchImpl: GovernanceFetch = fetch,
     timeoutMs = 5_000,
-    token = process.env.GOVERNANCE_SERVICE_TOKEN,
+    serviceToken = process.env.GOVERNANCE_SERVICE_TOKEN,
   ) {
     this.baseUrl = baseUrl;
-    this.fetchImpl = typeof fetchImplOrToken === "function" ? fetchImplOrToken : fetch;
+    this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
-    this.token = typeof fetchImplOrToken === "string" ? fetchImplOrToken : token;
+    this.serviceToken = serviceToken;
   }
 
-  private headers(idempotencyKey?: string): Record<string, string> {
+  private headers(): Record<string, string> {
     return {
       accept: "application/json",
-      origin: new URL(this.baseUrl).origin,
-      ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
-      ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
+      ...(this.serviceToken ? { Authorization: `Bearer ${this.serviceToken}` } : {}),
     };
   }
 
-  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
+  private async request(path: string): Promise<unknown> {
     const response = await this.fetchImpl(new URL(path, this.baseUrl), {
-      ...init,
-      headers: { ...this.headers(), ...init.headers },
+      headers: this.headers(),
       signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!response.ok) {
@@ -262,36 +217,18 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
   private mapCampaign(record: FoundationCampaign): GovernanceCampaign {
     return {
       governanceRecordId: record.campaignKey,
-      governanceStatus: record.status === "superseded"
-        ? "Superseded"
-        : record.status === "draft"
-          ? "Authoritative draft"
-          : "Authoritative",
+      governanceStatus: record.status === "superseded" ? "Superseded" : "Authoritative",
       internalTitle: record.name,
       campaignCode: record.campaignKey,
-      taxonomyVersion: record.taxonomyVersion ?? null,
+      taxonomyVersion: null,
       authoritativeSource: this.source,
-      fiscalAssignment: record.fiscalAssignment ?? record.fiscalPeriod ?? null,
-      trackingParameters: record.trackingParameters ?? null,
-      validation: record.validation?.valid === undefined ? null : {
-        valid: record.validation.valid,
-        issues: record.validation.issues ?? null,
-      },
-      supersession: record.status !== "superseded" && record.supersededByCampaignKey === undefined ? null : {
-        superseded: record.status === "superseded",
-        replacementId: record.supersededByCampaignKey ?? null,
-      },
-      providerResponse: record,
     };
   }
 
   async isConnected(): Promise<boolean> {
-    if (!this.token?.trim()) return false;
     try {
-      const health = await this.request("/api/healthz") as Record<string, unknown>;
-      if (!isRecord(health) || health["status"] !== "ok") return false;
-      await this.request("/api/auth/user");
-      return true;
+      const health = await this.request("/api/healthz");
+      return isRecord(health) && health["status"] === "ok";
     } catch {
       return false;
     }
@@ -320,25 +257,15 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
     return this.mapCampaign(parseCampaign(payload, path));
   }
 
-  async createDraftCampaignRequest(input: Record<string, unknown>, idempotencyKey: string): Promise<GovernanceCampaign> {
-    this.requireWriteAuthentication();
-    const created = parseCampaign(await this.request("/api/campaigns", {
-      method: "POST",
-      headers: { ...this.headers(idempotencyKey), "content-type": "application/json" },
-      body: JSON.stringify(input),
-    }), "/api/campaigns");
-    const submitted = parseCampaign(await this.request(
-      `/api/campaigns/${encodeURIComponent(created.campaignKey)}/submit`,
-      {
-        method: "POST",
-        headers: { ...this.headers(`${idempotencyKey}:submit`), "content-type": "application/json" },
-        body: JSON.stringify({}),
-      },
-    ), `/api/campaigns/${encodeURIComponent(created.campaignKey)}/submit`);
-    if (submitted.campaignKey !== created.campaignKey) {
-      throw new Error("Governance campaign submission returned a different campaignKey");
-    }
-    return this.mapCampaign(submitted);
+  async createDraftCampaignRequest(input: Record<string, unknown>): Promise<GovernanceCampaign> {
+    return {
+      governanceRecordId: null,
+      governanceStatus: "Pending authoritative assignment",
+      internalTitle: String(input["internalTitle"] ?? "Pending governed title"),
+      campaignCode: null,
+      taxonomyVersion: await this.getTaxonomyVersion(),
+      authoritativeSource: this.source,
+    };
   }
 
   async getTaxonomy(scope: string): Promise<Record<string, unknown>> {
@@ -364,12 +291,10 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
   }
 
   async reserveCampaignCode(): Promise<string | null> { return null; }
-
   async reserveActivityCode(): Promise<string | null> { return null; }
-
   async generateTrackingParameters(_input: Record<string, string>): Promise<Record<string, string>> { return {}; }
 
-  async validateCampaign(): Promise<{ valid: boolean; issues: string[] | null }> {
+  async validateCampaign(): Promise<{ valid: boolean; issues: string[] }> {
     return {
       valid: false,
       issues: ["The governance system does not expose a documented validation endpoint"],
@@ -377,50 +302,8 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
   }
 
   async getFiscalAssignment(_date: string): Promise<string | null> { return null; }
-
   async getSupersessionStatus(): Promise<{ superseded: boolean; replacementId: string | null }> {
     return { superseded: false, replacementId: null };
-  }
-
-  private readonly token: string | undefined;
-
-  private requireWriteAuthentication(): void {
-    if (!this.token?.trim()) {
-      throw new Error("GOVERNANCE_SERVICE_TOKEN is required for governance writes");
-    }
-  }
-
-  async createActivity(campaignId: string, input: Record<string, unknown>, idempotencyKey: string): Promise<GovernanceActivity> {
-    this.requireWriteAuthentication();
-    const response = await this.request(
-      `/api/campaigns/${encodeURIComponent(campaignId)}/activities`,
-      {
-        method: "POST",
-        headers: { ...this.headers(idempotencyKey), "content-type": "application/json" },
-        body: JSON.stringify(input),
-      },
-    ) as Record<string, unknown>;
-    const rawId = response["activityKey"] ?? response["activityCode"] ?? response["id"];
-    if (typeof rawId !== "string" || !rawId.trim()) {
-      throw new Error("Governance activity response did not include an official string identifier");
-    }
-    const id = rawId.trim();
-    const activityCode = typeof response["activityCode"] === "string" && response["activityCode"].trim()
-      ? response["activityCode"]
-      : null;
-    const status = typeof response["status"] === "string" ? response["status"] : null;
-    return {
-      governanceRecordId: id,
-      governanceStatus: status === "superseded"
-        ? "Superseded"
-        : status === "draft" || status === null
-          ? "Authoritative draft"
-          : "Authoritative",
-      activityCode,
-      taxonomyVersion: typeof response["taxonomyVersion"] === "string" ? response["taxonomyVersion"] : null,
-      authoritativeSource: this.source,
-      providerResponse: response,
-    };
   }
 }
 

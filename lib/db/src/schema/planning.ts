@@ -8,7 +8,6 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
-  varchar,
 } from "drizzle-orm/pg-core";
 
 const auditColumns = {
@@ -26,7 +25,6 @@ const governedColumns = {
   governanceStatus: text("governance_status").notNull().default("Pending authoritative assignment"),
   taxonomyVersion: text("taxonomy_version"),
   authoritativeSource: text("authoritative_source").notNull().default("Development Governance Adapter"),
-  governanceProviderResponse: jsonb("governance_provider_response"),
 };
 
 export const usersTable = pgTable("users", {
@@ -44,15 +42,6 @@ export const rolesTable = pgTable("roles", {
   ...auditColumns,
 });
 
-export const authSessionsTable = pgTable("auth_sessions", {
-  sid: varchar("sid").primaryKey(),
-  user: jsonb("user").$type<{
-    id: string;
-    email: string | null;
-    displayName: string;
-  }>().notNull(),
-  expire: timestamp("expire", { withTimezone: true }).notNull(),
-});
 export const campaignPlansTable = pgTable("campaign_plans", {
   id: uuid("id").primaryKey().defaultRandom(),
   ...governedColumns,
@@ -70,10 +59,6 @@ export const campaignPlansTable = pgTable("campaign_plans", {
   audienceSegment: text("audience_segment").notNull().default("Unspecified"),
   fiscalPeriod: text("fiscal_period").notNull().default("Unspecified"),
   description: text("description").notNull().default(""),
-  governanceIdempotencyKey: text("governance_idempotency_key").unique(),
-  governanceValidation: jsonb("governance_validation"),
-  trackingParameters: jsonb("tracking_parameters"),
-  supersededByGovernanceRecordId: text("superseded_by_governance_record_id"),
   ...auditColumns,
 });
 
@@ -108,7 +93,7 @@ export const campaignActivitiesTable = pgTable("campaign_activities", {
   anchorTime: text("anchor_time"),
   timezone: text("timezone"),
   ...auditColumns,
-}, (table) => [uniqueIndex("campaign_activity_governance_record_unique").on(table.governanceRecordId)]);
+});
 
 export const audienceDefinitionsTable = pgTable("audience_definitions", {
   id: uuid("id").primaryKey().defaultRandom(),

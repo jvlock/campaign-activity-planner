@@ -63,11 +63,6 @@ test("campaign search validates and maps the Foundation response", async () => {
       campaignCode: "CMP-101",
       taxonomyVersion: null,
       authoritativeSource: "Campaign Governance Foundation",
-      fiscalAssignment: null,
-      trackingParameters: null,
-      validation: null,
-      supersession: null,
-      providerResponse: { campaignKey: "CMP-101", name: "Annual Appeal", status: "active" },
     },
     {
       governanceRecordId: "CMP-099",
@@ -76,11 +71,6 @@ test("campaign search validates and maps the Foundation response", async () => {
       campaignCode: "CMP-099",
       taxonomyVersion: null,
       authoritativeSource: "Campaign Governance Foundation",
-      fiscalAssignment: null,
-      trackingParameters: null,
-      validation: null,
-      supersession: { superseded: true, replacementId: null },
-      providerResponse: { campaignKey: "CMP-099", name: "Old Appeal", status: "superseded" },
     },
   ]);
 });
