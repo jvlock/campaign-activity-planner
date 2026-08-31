@@ -1,36 +1,392 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Campaign Activity Planner API
 servers:
   - url: /api
-    description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: campaigns
+  - name: planning
+  - name: governance
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
           content:
             application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [planning]
+      responses:
+        "200":
+          description: Planning overview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+  /campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [campaigns]
+      responses:
+        "200":
+          description: Campaign plans
+          content:
+            application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                type: array
+                items: { $ref: "#/components/schemas/CampaignPlan" }
+    post:
+      operationId: createCampaign
+      tags: [campaigns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignInput" }
+      responses:
+        "201":
+          description: Campaign created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignPlan" }
+  /campaigns/{campaignId}:
+    parameters:
+      - $ref: "#/components/parameters/CampaignId"
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      responses:
+        "200":
+          description: Campaign workspace
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignWorkspace" }
+    patch:
+      operationId: updateCampaign
+      tags: [campaigns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignUpdate" }
+      responses:
+        "200":
+          description: Updated campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignPlan" }
+  /campaigns/{campaignId}/webinar:
+    parameters:
+      - $ref: "#/components/parameters/CampaignId"
+    post:
+      operationId: createWebinar
+      tags: [planning]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebinarInput" }
+      responses:
+        "201":
+          description: Webinar and schedule created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignWorkspace" }
+  /activities/{activityId}/reschedule:
+    post:
+      operationId: previewReschedule
+      tags: [planning]
+      parameters:
+        - $ref: "#/components/parameters/ActivityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RescheduleInput" }
+      responses:
+        "200":
+          description: Reschedule impact preview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReschedulePreview" }
+  /activities/{activityId}/confirm-reschedule:
+    post:
+      operationId: confirmReschedule
+      tags: [planning]
+      parameters:
+        - $ref: "#/components/parameters/ActivityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RescheduleInput" }
+      responses:
+        "200":
+          description: Updated workspace
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignWorkspace" }
+  /communications/{communicationId}:
+    patch:
+      operationId: updateCommunication
+      tags: [planning]
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunicationUpdate" }
+      responses:
+        "200":
+          description: Updated communication
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Communication" }
+  /communications/{communicationId}/readiness:
+    get:
+      operationId: getCommunicationReadiness
+      tags: [planning]
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Readiness checks
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadinessResult" }
+  /governance/status:
+    get:
+      operationId: getGovernanceStatus
+      tags: [governance]
+      responses:
+        "200":
+          description: Governance provider status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GovernanceStatus" }
 components:
+  parameters:
+    CampaignId:
+      name: campaignId
+      in: path
+      required: true
+      schema: { type: string }
+    ActivityId:
+      name: activityId
+      in: path
+      required: true
+      schema: { type: string }
+    CommunicationId:
+      name: communicationId
+      in: path
+      required: true
+      schema: { type: string }
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
-
+        status: { type: string }
+    GovernanceStatus:
+      type: object
+      required: [connected, label, authoritativeSource]
+      properties:
+        connected: { type: boolean }
+        label: { type: string }
+        authoritativeSource: { type: string }
+    CampaignPlan:
+      type: object
+      required: [id, internalTitle, shortTitle, objective, lifecycleStatus, governanceStatus, owner, startDate, endDate, activityCount, warningCount, updatedAt, version]
+      properties:
+        id: { type: string }
+        internalTitle: { type: string }
+        shortTitle: { type: string }
+        objective: { type: string }
+        lifecycleStatus: { type: string }
+        governanceStatus: { type: string }
+        governanceRecordId: { type: ["string", "null"] }
+        campaignCode: { type: ["string", "null"] }
+        owner: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        activityCount: { type: number }
+        warningCount: { type: number }
+        updatedAt: { type: string, format: date-time }
+        version: { type: number }
+    CampaignInput:
+      type: object
+      required: [shortTitle, objective, owner, startDate, endDate]
+      properties:
+        shortTitle: { type: string, minLength: 2 }
+        objective: { type: string, minLength: 2 }
+        owner: { type: string, minLength: 2 }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+    CampaignUpdate:
+      type: object
+      properties:
+        shortTitle: { type: string }
+        objective: { type: string }
+        owner: { type: string }
+        lifecycleStatus: { type: string }
+    WebinarInput:
+      type: object
+      required: [subject, externalTitle, segment, geography, language, product, topic, objective, eventDate, startTime, durationMinutes, timezone, platform]
+      properties:
+        subject: { type: string }
+        externalTitle: { type: string }
+        segment: { type: string }
+        geography: { type: string }
+        language: { type: string }
+        product: { type: string }
+        topic: { type: string }
+        objective: { type: string }
+        successMeasure: { type: string }
+        eventDate: { type: string, format: date }
+        startTime: { type: string }
+        durationMinutes: { type: number }
+        timezone: { type: string }
+        platform: { type: string }
+        registrationUrl: { type: string }
+    CampaignActivity:
+      type: object
+      required: [id, campaignId, activityType, internalTitle, shortTitle, lifecycleStatus, governanceStatus, eventDate, startTime, timezone, owner, version]
+      properties:
+        id: { type: string }
+        campaignId: { type: string }
+        activityType: { type: string }
+        internalTitle: { type: string }
+        shortTitle: { type: string }
+        lifecycleStatus: { type: string }
+        governanceStatus: { type: string }
+        eventDate: { type: string, format: date }
+        startTime: { type: string }
+        timezone: { type: string }
+        owner: { type: string }
+        version: { type: number }
+    Communication:
+      type: object
+      required: [id, activityId, internalTitle, shortTitle, communicationType, channel, audienceBranch, relativeRule, originalDate, scheduledDate, sendTime, timezone, lifecycleStatus, approvalStatus, warningCount, pinned, sent]
+      properties:
+        id: { type: string }
+        activityId: { type: string }
+        internalTitle: { type: string }
+        shortTitle: { type: string }
+        communicationType: { type: string }
+        channel: { type: string }
+        audienceBranch: { type: string }
+        relativeRule: { type: string }
+        originalDate: { type: string, format: date }
+        scheduledDate: { type: string, format: date }
+        sendTime: { type: string }
+        timezone: { type: string }
+        adjustmentReason: { type: ["string", "null"] }
+        lifecycleStatus: { type: string }
+        approvalStatus: { type: string }
+        warningCount: { type: number }
+        pinned: { type: boolean }
+        sent: { type: boolean }
+        subject: { type: ["string", "null"] }
+        preheader: { type: ["string", "null"] }
+        body: { type: ["string", "null"] }
+        destinationUrl: { type: ["string", "null"] }
+    CommunicationUpdate:
+      type: object
+      properties:
+        shortTitle: { type: string }
+        subject: { type: string }
+        preheader: { type: string }
+        body: { type: string }
+        destinationUrl: { type: string }
+        lifecycleStatus: { type: string }
+        approvalStatus: { type: string }
+        pinned: { type: boolean }
+    ChangeEvent:
+      type: object
+      required: [id, eventType, summary, actor, createdAt]
+      properties:
+        id: { type: string }
+        eventType: { type: string }
+        summary: { type: string }
+        actor: { type: string }
+        createdAt: { type: string, format: date-time }
+    CampaignWorkspace:
+      type: object
+      required: [campaign, activities, communications, changeEvents]
+      properties:
+        campaign: { $ref: "#/components/schemas/CampaignPlan" }
+        activities:
+          type: array
+          items: { $ref: "#/components/schemas/CampaignActivity" }
+        communications:
+          type: array
+          items: { $ref: "#/components/schemas/Communication" }
+        changeEvents:
+          type: array
+          items: { $ref: "#/components/schemas/ChangeEvent" }
+    Dashboard:
+      type: object
+      required: [activeCampaigns, upcomingActivities, communicationsInReview, blockingWarnings, campaigns, upcomingCommunications]
+      properties:
+        activeCampaigns: { type: number }
+        upcomingActivities: { type: number }
+        communicationsInReview: { type: number }
+        blockingWarnings: { type: number }
+        campaigns:
+          type: array
+          items: { $ref: "#/components/schemas/CampaignPlan" }
+        upcomingCommunications:
+          type: array
+          items: { $ref: "#/components/schemas/Communication" }
+    RescheduleInput:
+      type: object
+      required: [eventDate]
+      properties:
+        eventDate: { type: string, format: date }
+    RescheduleItem:
+      type: object
+      required: [communicationId, title, oldDate, proposedDate, action, warning]
+      properties:
+        communicationId: { type: string }
+        title: { type: string }
+        oldDate: { type: string, format: date }
+        proposedDate: { type: string, format: date }
+        action: { type: string }
+        warning: { type: boolean }
+    ReschedulePreview:
+      type: object
+      required: [oldEventDate, newEventDate, items, warnings]
+      properties:
+        oldEventDate: { type: string, format: date }
+        newEventDate: { type: string, format: date }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/RescheduleItem" }
+        warnings:
+          type: array
+          items: { type: string }
+    ReadinessCheck:
+      type: object
+      required: [key, label, passed, blocking]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        passed: { type: boolean }
+        blocking: { type: boolean }
+    ReadinessResult:
+      type: object
+      required: [ready, checks]
+      properties:
+        ready: { type: boolean }
+        checks:
+          type: array
+          items: { $ref: "#/components/schemas/ReadinessCheck" }

@@ -1,6 +1,6 @@
-# [Project name]
+# Campaign Activity Planner
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A generic campaign and activity planning platform with a versioned Webinar template.
 
 ## Run & Operate
 
@@ -22,15 +22,23 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- API contract: `lib/api-spec/openapi.yaml`
+- Data model: `lib/db/src/schema/planning.ts`
+- Governance boundary: `artifacts/api-server/src/lib/governance.ts`
+- Schedule engine: `artifacts/api-server/src/lib/scheduling.ts`
+- Web app: `artifacts/campaign-activity-planner`
+- Product documents: `docs/`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Campaign Governance Foundation is authoritative; do not copy its taxonomy, naming, code, UTM, fiscal, or supersession logic.
+- Development governance outputs are never final and must remain visibly pending.
+- Webinar extends the generic Campaign Activity model.
+- Calendar and journey views must project the same records.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Plan campaigns and Webinar activities, generate relative communication schedules, edit content, inspect readiness, preview rescheduling impact, and review governance/audit status.
 
 ## User preferences
 
@@ -38,7 +46,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Re-run OpenAPI codegen after every API specification change.
+- Production RBAC is not complete until authentication is connected.
+- Do not claim any external marketing platform is integrated until configured and verified.
 
 ## Pointers
 
