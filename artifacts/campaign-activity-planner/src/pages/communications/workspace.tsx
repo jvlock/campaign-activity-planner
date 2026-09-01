@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertTriangle, Send, RefreshCw, ArrowLeft, Clock, MapPin, Users, History, Activity } from "lucide-react";
+import { CheckCircle2, AlertCircle, AlertTriangle, Send, RefreshCw, ArrowLeft, Clock, MapPin, Users, History, Activity } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
@@ -21,7 +21,7 @@ import { Save } from "lucide-react";
 export default function CommunicationWorkspace() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { data: commData, isLoading } = useGetCommunication(id!);
+  const { data: commData, isLoading, isFetching, error, refetch } = useGetCommunication(id!);
   const { data: readiness, isLoading: isReadinessLoading } = useGetCommunicationReadiness(id!);
   const updateComm = useUpdateCommunication();
   const queryClient = useQueryClient();
@@ -115,12 +115,28 @@ export default function CommunicationWorkspace() {
     });
   };
 
-  if (isLoading || !commData) {
+  if (isLoading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[50vh]">
         <div className="animate-pulse space-y-8 w-full max-w-5xl mx-auto">
           <div className="h-8 bg-muted rounded w-1/3"></div>
           <div className="h-32 bg-muted rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !commData) {
+    return (
+      <div className="p-8 max-w-3xl mx-auto">
+        <div className="rounded-lg border border-destructive/50 bg-card p-10 flex flex-col items-center text-center">
+          <AlertCircle className="h-10 w-10 text-destructive mb-4" />
+          <h1 className="text-xl font-bold">Communication workspace is temporarily unavailable</h1>
+          <p className="text-muted-foreground mt-2">Your navigation remains available and no edits have been lost.</p>
+          <Button className="mt-5 gap-2" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Retry communication
+          </Button>
         </div>
       </div>
     );

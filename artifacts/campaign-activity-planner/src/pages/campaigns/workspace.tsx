@@ -9,7 +9,7 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from "date-fns";
-import { Calendar, AlertTriangle, Shield, Plus, Activity, Download, RefreshCw, ChevronRight } from "lucide-react";
+import { Calendar, AlertCircle, AlertTriangle, Shield, Plus, Activity, Download, RefreshCw, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import { downloadImplementationWorkbook } from "@/lib/export-workbook";
 export default function CampaignWorkspace() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { data: workspace, isLoading } = useGetCampaign(id!);
+  const { data: workspace, isLoading, isFetching, error, refetch } = useGetCampaign(id!);
   const retryGovernance = useRetryCampaignGovernance();
   const queryClient = useQueryClient();
 
@@ -45,7 +45,7 @@ export default function CampaignWorkspace() {
     }
   };
 
-  if (isLoading || !workspace) {
+  if (isLoading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[50vh]">
         <div className="animate-pulse space-y-8 w-full max-w-7xl mx-auto">
@@ -53,6 +53,24 @@ export default function CampaignWorkspace() {
           <div className="h-32 bg-muted rounded"></div>
           <div className="h-96 bg-muted rounded"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (error || !workspace) {
+    return (
+      <div className="p-8 max-w-3xl mx-auto">
+        <Card className="border-destructive/50">
+          <CardContent className="py-10 flex flex-col items-center text-center">
+            <AlertCircle className="h-10 w-10 text-destructive mb-4" />
+            <h1 className="text-xl font-bold">Campaign workspace is temporarily unavailable</h1>
+            <p className="text-muted-foreground mt-2">The application shell is ready, but this campaign could not be loaded.</p>
+            <Button className="mt-5 gap-2" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              Retry campaign
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

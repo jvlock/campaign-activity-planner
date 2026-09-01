@@ -2,16 +2,22 @@ import { Link } from "wouter";
 import { useGetDashboard } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Calendar, Megaphone, Activity } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, Calendar, Megaphone, Activity, RefreshCw } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 export default function Dashboard() {
-  const { data: dashboard, isLoading, error } = useGetDashboard();
+  const { data: dashboard, isLoading, isFetching, error, refetch } = useGetDashboard();
 
-  if (isLoading) {
-    return (
-      <div className="p-8 flex items-center justify-center min-h-[50vh]">
-        <div className="animate-pulse space-y-4 w-full max-w-4xl">
+  return (
+    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Command Center</h1>
+        <p className="text-muted-foreground mt-1">Live overview of campaign operations and readiness.</p>
+      </div>
+
+      {isLoading ? (
+        <div className="animate-pulse space-y-4" aria-label="Loading campaign data">
           <div className="h-8 bg-muted rounded w-1/4"></div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="h-32 bg-muted rounded"></div>
@@ -21,26 +27,22 @@ export default function Dashboard() {
           </div>
           <div className="h-64 bg-muted rounded"></div>
         </div>
-      </div>
-    );
-  }
-
-  if (error || !dashboard) {
-    return (
-      <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] text-center">
-        <AlertCircle className="h-10 w-10 text-destructive mb-4" />
-        <h2 className="text-xl font-bold mb-2">Failed to load dashboard</h2>
-        <p className="text-muted-foreground">Please check your connection and try again.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Command Center</h1>
-        <p className="text-muted-foreground mt-1">Live overview of campaign operations and readiness.</p>
-      </div>
+      ) : error || !dashboard ? (
+        <Card className="border-destructive/50">
+          <CardContent className="py-10 flex flex-col items-center text-center">
+            <AlertCircle className="h-10 w-10 text-destructive mb-4" />
+            <h2 className="text-xl font-bold mb-2">Campaign data is temporarily unavailable</h2>
+            <p className="text-muted-foreground max-w-xl">
+              The command center is ready, but its data service did not respond. You can continue navigating or retry this panel.
+            </p>
+            <Button className="mt-5 gap-2" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              Retry data
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-primary">
@@ -151,6 +153,8 @@ export default function Dashboard() {
           </Card>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

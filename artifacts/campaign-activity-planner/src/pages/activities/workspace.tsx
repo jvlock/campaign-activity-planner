@@ -18,14 +18,14 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, parseISO } from "date-fns";
-import { Calendar, Clock, AlertTriangle, ArrowRight, MessageSquare, Edit, CheckCircle2, ChevronRight, Users, PlaySquare } from "lucide-react";
+import { Calendar, Clock, AlertCircle, AlertTriangle, ArrowRight, MessageSquare, Edit, CheckCircle2, ChevronRight, Users, PlaySquare, RefreshCw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export default function ActivityWorkspace() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { data: workspace, isLoading } = useGetActivity(id!);
+  const { data: workspace, isLoading, isFetching, error, refetch } = useGetActivity(id!);
   const queryClient = useQueryClient();
 
   // Reschedule state
@@ -114,7 +114,7 @@ export default function ActivityWorkspace() {
     });
   };
 
-  if (isLoading || !workspace) {
+  if (isLoading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[50vh]">
         <div className="animate-pulse space-y-8 w-full max-w-7xl mx-auto">
@@ -122,6 +122,24 @@ export default function ActivityWorkspace() {
           <div className="h-32 bg-muted rounded"></div>
           <div className="h-96 bg-muted rounded"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (error || !workspace) {
+    return (
+      <div className="p-8 max-w-3xl mx-auto">
+        <Card className="border-destructive/50">
+          <CardContent className="py-10 flex flex-col items-center text-center">
+            <AlertCircle className="h-10 w-10 text-destructive mb-4" />
+            <h1 className="text-xl font-bold">Activity workspace is temporarily unavailable</h1>
+            <p className="text-muted-foreground mt-2">Other planner areas remain available while this activity is reloaded.</p>
+            <Button className="mt-5 gap-2" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              Retry activity
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
+  timeoutMs?: number;
 };
 
 export type ErrorType<T = unknown> = ApiError<T>;
@@ -10,6 +11,7 @@ export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
+const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
 
 // ---------------------------------------------------------------------------
 // Module-level configuration
@@ -327,7 +329,13 @@ export async function customFetch<T = unknown>(
   options: CustomFetchOptions = {},
 ): Promise<T> {
   input = applyBaseUrl(input);
-  const { responseType = "auto", headers: headersInit, ...init } = options;
+  const {
+    responseType = "auto",
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    headers: headersInit,
+    signal: callerSignal,
+    ...init
+  } = options;
 
   const method = resolveMethod(input, init.method);
 
@@ -359,13 +367,31 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) abortFromCaller();
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = setTimeout(
+    () => controller.abort(new DOMException("Request timed out", "TimeoutError")),
+    timeoutMs,
+  );
 
-  const response = await fetch(input, { ...init, method, headers });
+  try {
+    const response = await fetch(input, {
+      ...init,
+      method,
+      headers,
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
+    if (!response.ok) {
+      const errorData = await parseErrorBody(response, method);
+      throw new ApiError(response, errorData, requestInfo);
+    }
+
+    return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+  } finally {
+    clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", abortFromCaller);
   }
-
-  return (await parseSuccessBody(response, responseType, requestInfo)) as T;
 }

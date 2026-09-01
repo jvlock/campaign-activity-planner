@@ -183,7 +183,7 @@ export class CampaignGovernanceFoundationAdapter implements GovernanceProvider {
     baseUrl = process.env.GOVERNANCE_BASE_URL
       ?? "https://campaign-governance-foundation.replit.app",
     fetchImpl: GovernanceFetch = fetch,
-    timeoutMs = 5_000,
+    timeoutMs = 2_500,
     serviceToken = process.env.GOVERNANCE_SERVICE_TOKEN,
   ) {
     this.baseUrl = baseUrl;

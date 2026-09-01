@@ -22,6 +22,21 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/HealthStatus" }
+  /readyz:
+    get:
+      operationId: readinessCheck
+      tags: [health]
+      responses:
+        "200":
+          description: Application dependencies are ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadinessStatus" }
+        "503":
+          description: One or more application dependencies are unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadinessStatus" }
   /dashboard:
     get:
       operationId: getDashboard
@@ -382,6 +397,20 @@ components:
       required: [status]
       properties:
         status: { type: string }
+    ReadinessStatus:
+      type: object
+      required: [status, dependencies]
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        dependencies:
+          type: object
+          required: [database]
+          properties:
+            database:
+              type: string
+              enum: [ready, unavailable]
     GovernanceStatus:
       type: object
       required: [connected, label, authoritativeSource]

@@ -952,8 +952,10 @@ router.get("/campaigns/:campaignId/workbook", async (req, res): Promise<void> =>
 });
 
 router.get("/dashboard", async (_req, res): Promise<void> => {
-  const campaigns = await db.select().from(campaignPlansTable).orderBy(desc(campaignPlansTable.updatedAt)).limit(6);
-  const activities = await db.select().from(campaignActivitiesTable);
+  const [campaigns, activities] = await Promise.all([
+    db.select().from(campaignPlansTable).orderBy(desc(campaignPlansTable.updatedAt)).limit(6),
+    db.select().from(campaignActivitiesTable),
+  ]);
   const communications = await communicationDtos(activities.map((item) => item.id));
   res.json({
     activeCampaigns: campaigns.filter((item) => !["Completed", "Cancelled"].includes(item.lifecycleStatus)).length,

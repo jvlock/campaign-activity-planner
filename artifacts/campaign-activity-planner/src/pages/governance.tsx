@@ -19,8 +19,20 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function Governance() {
-  const { data: status, isLoading: statusLoading } = useGetGovernanceStatus();
-  const { data: aliases, isLoading: aliasesLoading } = useListCompanyAliases();
+  const {
+    data: status,
+    isLoading: statusLoading,
+    isFetching: statusFetching,
+    error: statusError,
+    refetch: refetchStatus,
+  } = useGetGovernanceStatus();
+  const {
+    data: aliases,
+    isLoading: aliasesLoading,
+    isFetching: aliasesFetching,
+    error: aliasesError,
+    refetch: refetchAliases,
+  } = useListCompanyAliases();
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -51,7 +63,7 @@ export default function Governance() {
                   </CardTitle>
                   {statusLoading ? (
                     <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-                  ) : status?.connected ? (
+                  ) : !statusError && status?.connected ? (
                     <Badge className="bg-emerald-500 hover:bg-emerald-600 gap-1.5 px-3 py-1">
                       <ShieldCheck className="h-4 w-4" /> Connected
                     </Badge>
@@ -64,6 +76,16 @@ export default function Governance() {
                 <CardDescription>Current connection state to the authoritative governance service</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {statusError ? (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4">
+                    <p className="font-semibold">Governance status is temporarily unavailable</p>
+                    <p className="text-sm text-muted-foreground mt-1">Planner navigation and local campaign work remain available.</p>
+                    <Button className="mt-3 gap-2" size="sm" variant="outline" onClick={() => refetchStatus()} disabled={statusFetching}>
+                      <RefreshCw className={`h-4 w-4 ${statusFetching ? "animate-spin" : ""}`} />
+                      Retry status
+                    </Button>
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Authoritative Source</span>
@@ -133,6 +155,16 @@ export default function Governance() {
                   <TableBody>
                     {aliasesLoading ? (
                       <TableRow><TableCell colSpan={5} className="text-center py-8">Loading aliases...</TableCell></TableRow>
+                    ) : aliasesError ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8">
+                          <p className="font-semibold">Aliases are temporarily unavailable</p>
+                          <Button className="mt-3 gap-2" size="sm" variant="outline" onClick={() => refetchAliases()} disabled={aliasesFetching}>
+                            <RefreshCw className={`h-4 w-4 ${aliasesFetching ? "animate-spin" : ""}`} />
+                            Retry aliases
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     ) : aliases?.length === 0 ? (
                       <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No aliases defined.</TableCell></TableRow>
                     ) : (

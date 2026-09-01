@@ -4,13 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format, parseISO } from "date-fns";
-import { Search, Plus, Target, Shield } from "lucide-react";
+import { AlertCircle, RefreshCw, Search, Plus, Target, Shield } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 export default function Campaigns() {
-  const { data: campaigns, isLoading } = useListCampaigns();
+  const { data: campaigns, isLoading, isFetching, error, refetch } = useListCampaigns();
   const [search, setSearch] = useState("");
 
   const filteredCampaigns = campaigns?.filter(c => 
@@ -65,6 +65,22 @@ export default function Campaigns() {
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                   Loading campaigns...
+                </TableCell>
+              </TableRow>
+            ) : error ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-32 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <AlertCircle className="h-8 w-8 text-destructive" />
+                    <div>
+                      <p className="font-semibold">Campaign data is temporarily unavailable</p>
+                      <p className="text-sm text-muted-foreground">The workspace remains available while the data service recovers.</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="gap-2" onClick={() => refetch()} disabled={isFetching}>
+                      <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                      Retry
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : filteredCampaigns.length === 0 ? (

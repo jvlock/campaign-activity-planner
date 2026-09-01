@@ -13,6 +13,14 @@ export const HealthCheckResponse = zod.object({
 })
 
 
+export const ReadinessCheckResponse = zod.object({
+  "status": zod.enum(['ready', 'not_ready']),
+  "dependencies": zod.object({
+  "database": zod.enum(['ready', 'unavailable'])
+})
+})
+
+
 export const GetDashboardResponse = zod.object({
   "activeCampaigns": zod.number(),
   "upcomingActivities": zod.number(),
