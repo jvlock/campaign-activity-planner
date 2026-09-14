@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Megaphone, ShieldCheck, Plus, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RetirementNotice } from "./retirement-notice";
 
 interface ShellProps {
   children: React.ReactNode;
@@ -61,7 +62,8 @@ export function Shell({ children }: ShellProps) {
       </aside>
 
       {/* Main Content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <RetirementNotice />
         {/* Mobile Header */}
         <header className="flex h-14 items-center border-b bg-card px-4 md:hidden">
           <Link href="/" className="flex items-center gap-2 font-bold text-primary tracking-tight">
